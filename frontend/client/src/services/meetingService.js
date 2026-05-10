@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = `http://${window.location.hostname}:5000/api/meetings`;
+const API = `${import.meta.env.VITE_API_URL}/api/meetings`;
 
 export const createMeeting = async (token) => {
     const response = await axios.post(

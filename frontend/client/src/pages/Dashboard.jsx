@@ -18,7 +18,7 @@ const Dashboard = () => {
     const token = localStorage.getItem("token");
     const userString = localStorage.getItem("user");
     let user = {};
-    try { user = JSON.parse(userString || "{}"); } catch (e) {  }
+    try { user = JSON.parse(userString || "{}"); } catch (e) { }
 
     const fetchMeetings = async () => {
         try {
@@ -187,7 +187,7 @@ const Dashboard = () => {
                             </svg>
                         </button>
                         <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                            <span style={css.welcomeText}>WELCOME BACK</span>
+                            <span style={css.welcomeText}>WELCOME BACK BOSS</span>
                             <h2 style={css.headerTitle}>{user.name || "User Dashboard"}</h2>
                         </div>
                     </div>
@@ -377,7 +377,7 @@ const Dashboard = () => {
 
 
 const IconBrand = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
+    <img src="/favicon.png" alt="Logo" style={{ width: 24, height: 24, objectFit: 'contain' }} />
 );
 const IconHome = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>

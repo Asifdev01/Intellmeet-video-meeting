@@ -422,9 +422,7 @@ const MeetingRoom = () => {
             <aside style={css.sidebar}>
                 <div style={css.logoArea}>
                     <div style={css.logoIcon}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                            <path d="M12 5v14M5 12h14" />
-                        </svg>
+                        <img src="/favicon.png" alt="Logo" style={{ width: 24, height: 24, objectFit: 'contain' }} />
                     </div>
                 </div>
                 <div style={css.sideNav}>
