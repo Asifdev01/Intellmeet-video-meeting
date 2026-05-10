@@ -35,7 +35,7 @@ const Signup = () => {
         try {
             const { name, email, password } = formData;
             await register({ name, email, password });
-            // register() now stores token+user → go straight to dashboard
+
             navigate("/dashboard");
         } catch (err) {
             setError(err.response?.data?.message || "Registration failed. Please try again.");

@@ -5,7 +5,7 @@ import VideoPlayer from "../components/VideoPlayer";
 import { peerConfig } from "../services/webrtc";
 import { getCurrentUser } from "../services/authService";
 
-/* ─── helpers ─────────────────────────────────────────── */
+
 const avatarColors = [
     { bg: "#E6F1FB", text: "#185FA5" },
     { bg: "#E1F5EE", text: "#0F6E56" },
@@ -23,7 +23,7 @@ const getSenderColor = (name) => {
 const formatTime = (date) =>
     date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-/* ─── Avatar ───────────────────────────────────────────── */
+
 const Avatar = ({ name, size = 34 }) => {
     const s = getAvatarStyle(name);
     return (
@@ -38,7 +38,7 @@ const Avatar = ({ name, size = 34 }) => {
     );
 };
 
-/* ─── Icon buttons ─────────────────────────────────────── */
+
 const CtrlBtn = ({ onClick, danger, active, children, label }) => (
     <button
         onClick={onClick}
@@ -59,7 +59,7 @@ const CtrlBtn = ({ onClick, danger, active, children, label }) => (
     </button>
 );
 
-/* ─── SVG icons ────────────────────────────────────────── */
+
 const IconMic = ({ muted }) => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         {muted ? (
@@ -144,10 +144,10 @@ const IconScreenShare = () => (
     </svg>
 );
 
-/* ─── Main component ───────────────────────────────────── */
+
 const MeetingRoom = () => {
     const { roomId } = useParams();
-    // Real logged-in user — sourced from localStorage set during login/signup
+
     const currentUser = getCurrentUser();
     const myName = currentUser.name || "You";
 
@@ -156,7 +156,7 @@ const MeetingRoom = () => {
     const [typing, setTyping] = useState("");
     const [localStream, setLocalStream] = useState(null);
     const [remoteStream, setRemoteStream] = useState(null);
-    const [remoteUserName, setRemoteUserName] = useState(""); // Real remote participant name
+    const [remoteUserName, setRemoteUserName] = useState("");
     const [isMuted, setIsMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -170,7 +170,7 @@ const MeetingRoom = () => {
     const pendingCandidatesRef = useRef([]);
     const joinedRef = useRef(false);
 
-    /* ── socket: chat ── */
+
     useEffect(() => {
         socket.on("receive-message", (data) => {
             setMessages((prev) => [...prev, { ...data, time: new Date() }]);
@@ -187,9 +187,9 @@ const MeetingRoom = () => {
         };
     }, []);
 
-    // user-left handler is now defined after user-joined to avoid duplication
 
-    /* ── cleanup ── */
+
+
     useEffect(() => {
         return () => {
             localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -197,7 +197,7 @@ const MeetingRoom = () => {
         };
     }, []);
 
-    /* ── media + join ── */
+
     useEffect(() => {
         if (joinedRef.current) return;
         joinedRef.current = true;
@@ -229,7 +229,7 @@ const MeetingRoom = () => {
                 localStreamRef.current = stream;
             }
 
-            // Emit real user name so remote participants see who joined
+
             console.log(`[Meeting] Joining room ${roomId} as "${myName}"`);
             socket.emit("join-room", { roomId, userId: socket.id, userName: myName });
         };
@@ -237,7 +237,7 @@ const MeetingRoom = () => {
         return () => stream?.getTracks().forEach((t) => t.stop());
     }, [roomId]);
 
-    /* ── socket: user-left — also clear remote name ── */
+
     useEffect(() => {
         socket.on("user-left", ({ socketId }) => {
             console.log(`[Meeting] User left: ${socketId}`);
@@ -249,11 +249,11 @@ const MeetingRoom = () => {
         return () => socket.off("user-left");
     }, []);
 
-    /* ── WebRTC: user-joined ── */
+
     useEffect(() => {
         socket.on("user-joined", async ({ socketId, userName }) => {
             console.log(`[Meeting] User joined: "${userName}" (${socketId})`);
-            // Store their real name for display
+
             setRemoteUserName(userName || "Participant");
             const peer = new RTCPeerConnection(peerConfig);
             peerRef.current = peer;
@@ -276,7 +276,7 @@ const MeetingRoom = () => {
         return () => socket.off("user-joined");
     }, []);
 
-    /* ── WebRTC: offer ── */
+
     useEffect(() => {
         socket.on("offer", async ({ offer, from }) => {
             const peer = new RTCPeerConnection(peerConfig);
@@ -298,7 +298,7 @@ const MeetingRoom = () => {
             console.log("Sending answer to", from);
             socket.emit("answer", { answer, to: from });
 
-            // Process any pending candidates
+
             if (pendingCandidatesRef.current.length > 0) {
                 console.log("Processing", pendingCandidatesRef.current.length, "pending candidates");
                 pendingCandidatesRef.current.forEach((candidate) => {
@@ -310,14 +310,14 @@ const MeetingRoom = () => {
         return () => socket.off("offer");
     }, []);
 
-    /* ── WebRTC: answer + ICE ── */
+
     useEffect(() => {
         socket.on("answer", async ({ answer }) => {
             if (peerRef.current) {
                 console.log("Received answer, setting remote description");
                 await peerRef.current.setRemoteDescription(new RTCSessionDescription(answer));
 
-                // Process any pending candidates
+
                 if (pendingCandidatesRef.current.length > 0) {
                     console.log("Processing", pendingCandidatesRef.current.length, "pending candidates after answer");
                     pendingCandidatesRef.current.forEach((candidate) => {
@@ -346,15 +346,15 @@ const MeetingRoom = () => {
         return () => socket.off("ice-candidate");
     }, []);
 
-    /* ── scroll ── */
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, typing]);
 
-    /* ── actions ── */
+
     const sendMessage = () => {
         if (!message.trim()) return;
-        // Include real user name so receiver sees who sent the message
+
         socket.emit("send-message", { roomId, message, senderId: socket.id, sender: myName });
         setMessage("");
         inputRef.current?.focus();
@@ -414,12 +414,11 @@ const MeetingRoom = () => {
         setIsScreenSharing(false);
     };
 
-    /* ── render ── */
+
     return (
         <div style={css.root}>
             <style>{globalCSS}</style>
 
-            {/* ══ SIDEBAR: Navigation ══ */}
             <aside style={css.sidebar}>
                 <div style={css.logoArea}>
                     <div style={css.logoIcon}>
@@ -445,7 +444,6 @@ const MeetingRoom = () => {
                 </button>
             </aside>
 
-            {/* ══ MAIN: Video Stage ══ */}
             <main style={css.main}>
                 <header style={css.header}>
                     <div style={css.headerLeft}>
@@ -461,7 +459,7 @@ const MeetingRoom = () => {
                 </header>
 
                 <div style={css.content}>
-                    {/* Secondary videos (Top bar) - ONLY SHOW IF REMOTE USER JOINS */}
+
                     {remoteStream && (
                         <div style={css.thumbStrip}>
                             <div style={css.thumbCard}>
@@ -475,7 +473,6 @@ const MeetingRoom = () => {
                         </div>
                     )}
 
-                    {/* Main Focus Video */}
                     <div style={css.stageArea}>
                         {remoteStream ? (
                             remoteStream.getVideoTracks().length > 0 ? (
@@ -502,7 +499,6 @@ const MeetingRoom = () => {
                         </div>
                     </div>
 
-                    {/* Bottom Controls */}
                     <footer style={css.controlPill}>
                         <div style={css.roomIdBox}>
                             <span style={css.roomLabel}>Meeting ID</span>
@@ -527,7 +523,6 @@ const MeetingRoom = () => {
                 </div>
             </main>
 
-            {/* ══ RIGHT: Chat Panel ══ */}
             <aside style={css.chatContainer}>
                 <div style={css.panelHeader}>
                     <button style={{...css.tab, ...css.tabActive}}>Chat</button>
@@ -574,13 +569,13 @@ const MeetingRoom = () => {
     );
 };
 
-/* ─── Styles ───────────────────────────────────────────── */
+
 const globalCSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-  
-  body { 
-    background: #FAFAFD; 
+
+  body {
+    background: #FAFAFD;
     font-family: 'Plus Jakarta Sans', sans-serif;
     color: #122056;
   }
@@ -592,15 +587,15 @@ const globalCSS = `
   }
   .pulse { animation: pulse 2s infinite ease-in-out; }
 
-  video { 
-    width: 100%; height: 100%; 
-    object-fit: cover; 
-    border-radius: 20px; 
-    display: block; 
+  video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    border-radius: 20px;
+    display: block;
     background: #122056;
   }
 
-  /* Custom Scrollbar */
+
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
@@ -615,7 +610,7 @@ const css = {
         overflow: "hidden",
     },
 
-    /* ── Sidebar ── */
+
     sidebar: {
         width: 80,
         background: "#122056",
@@ -665,7 +660,7 @@ const css = {
         display: "flex", alignItems: "center", justifyContent: "center",
     },
 
-    /* ── Main ── */
+
     main: {
         flex: 1,
         display: "flex",
@@ -784,7 +779,7 @@ const css = {
         boxShadow: "0 4px 12px rgba(255, 77, 78, 0.2)",
     },
 
-    /* ── Chat ── */
+
     chatContainer: {
         width: 360,
         background: "#FFFFFF",

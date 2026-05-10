@@ -12,7 +12,7 @@ export const login = async (userData) => {
     return response.data;
 };
 
-// Auto-login after signup: store token + user so user lands on dashboard directly
+
 export const register = async (userData) => {
     const response = await axios.post(`${API}/register`, userData);
     if (response.data.token) {
@@ -28,7 +28,7 @@ export const logout = () => {
     localStorage.removeItem("user");
 };
 
-// Helper: parse the stored user object safely
+
 export const getCurrentUser = () => {
     try {
         return JSON.parse(localStorage.getItem("user") || "{}");

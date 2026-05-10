@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 
-// We initialize OpenAI only when the function is called to ensure it uses the latest env var
-// and doesn't crash the server immediately if the key is missing on startup.
+
+
 export const generateMeetingSummary = async (transcript) => {
     if (!process.env.OPENAI_API_KEY) {
         throw new Error("OPENAI_API_KEY is missing. Please add it to the .env file.");
@@ -37,7 +37,7 @@ ${transcript}
 `;
 
         const response = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo", // You can switch to gpt-4 or gpt-4o for better results
+            model: "gpt-3.5-turbo",
             messages: [
                 { role: "system", content: "You are an AI meeting assistant. You must respond with valid JSON." },
                 { role: "user", content: prompt }
@@ -54,9 +54,9 @@ ${transcript}
 
     } catch (error) {
         console.error("OpenAI Error:", error.message);
-        
-        // If it's a quota error or any other API error, provide a mock fallback
-        // so the user can still see how the UI looks.
+
+
+
         if (error.status === 429 || error.code === 'insufficient_quota') {
             console.log(">>> Falling back to Mock Summary due to API Quota/Rate Limit <<<");
             return {
@@ -68,7 +68,7 @@ ${transcript}
                 ]
             };
         }
-        
+
         throw new Error("Failed to generate AI summary: " + error.message);
     }
 };

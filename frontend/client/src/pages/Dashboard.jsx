@@ -18,7 +18,7 @@ const Dashboard = () => {
     const token = localStorage.getItem("token");
     const userString = localStorage.getItem("user");
     let user = {};
-    try { user = JSON.parse(userString || "{}"); } catch (e) { /* ignore */ }
+    try { user = JSON.parse(userString || "{}"); } catch (e) {  }
 
     const fetchMeetings = async () => {
         try {
@@ -35,7 +35,7 @@ const Dashboard = () => {
         if (!token) navigate("/login");
         else fetchMeetings();
 
-        // Auto-close sidebar on mobile
+
         const handleResize = () => {
             if (window.innerWidth <= 768) {
                 setSidebarOpen(false);
@@ -44,7 +44,7 @@ const Dashboard = () => {
             }
         };
 
-        handleResize(); // Run on mount
+        handleResize();
         window.addEventListener("resize", handleResize);
         return () => window.removeEventListener("resize", handleResize);
     }, [token, navigate]);
@@ -122,7 +122,6 @@ const Dashboard = () => {
         <div style={css.root}>
             <style>{DashboardStyles}</style>
 
-            {/* ══ Mobile Overlay ══ */}
             {sidebarOpen && (
                 <div
                     className="sidebar-overlay"
@@ -130,7 +129,6 @@ const Dashboard = () => {
                 />
             )}
 
-            {/* ══ Sidebar ══ */}
             <aside className={`sidebar-aside ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`} style={css.sidebar(sidebarOpen)}>
                 <div style={css.logoSection}>
                     <div style={css.logoBox}>
@@ -161,7 +159,6 @@ const Dashboard = () => {
                     </button>
                 </div>
 
-                {/* Toggle Button */}
                 <button
                     onClick={() => setSidebarOpen(prev => !prev)}
                     className="sidebar-toggle-btn"
@@ -174,11 +171,10 @@ const Dashboard = () => {
                 </button>
             </aside>
 
-            {/* ══ Main Area ══ */}
             <div style={css.main}>
                 <header style={css.header}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
-                        {/* Mobile hamburger */}
+
                         <button
                             className="mobile-menu-btn"
                             onClick={() => setSidebarOpen(prev => !prev)}
@@ -303,7 +299,6 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* ══ AI Summary Modal ══ */}
             {aiModalOpen && activeAiMeeting && (
                 <div style={css.modalOverlay} onClick={() => setAiModalOpen(false)}>
                     <div style={css.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -380,7 +375,7 @@ const Dashboard = () => {
     );
 };
 
-/* ─── Icons ─── */
+
 const IconBrand = () => (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
 );
@@ -412,14 +407,14 @@ const IconSparkles = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5.0 1-.963 0z" /></svg>
 );
 
-/* ─── Styles ───────────────────────────────────────────── */
+
 const DashboardStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-  
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  
-  body { 
-    background: #FAFAFD; 
+
+  body {
+    background: #FAFAFD;
     font-family: 'Plus Jakarta Sans', sans-serif;
     color: #122056;
   }
@@ -502,9 +497,9 @@ const DashboardStyles = `
   .meeting-card {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .meeting-card:hover { 
-    transform: translateY(-4px); 
-    box-shadow: rgba(0, 0, 0, 0.02) 0px 1px 3px 0px, rgba(27, 31, 35, 0.15) 0px 0px 0px 1px, 0 10px 30px rgba(18,32,86,0.08); 
+  .meeting-card:hover {
+    transform: translateY(-4px);
+    box-shadow: rgba(0, 0, 0, 0.02) 0px 1px 3px 0px, rgba(27, 31, 35, 0.15) 0px 0px 0px 1px, 0 10px 30px rgba(18,32,86,0.08);
     border-color: #5B65DC !important;
   }
 
@@ -563,7 +558,7 @@ const css = {
         background: "#FAFAFD",
     },
 
-    /* ── Sidebar ── */
+
     sidebar: (isOpen) => ({
         width: isOpen ? 260 : 72,
         background: "#122056",
@@ -574,10 +569,10 @@ const css = {
         padding: "32px 0",
     }),
     sidebarToggle: {
-        /* Positioned via CSS class .sidebar-toggle-btn */
+
     },
     mobileMenuBtn: {
-        /* Shown/hidden via CSS class .mobile-menu-btn */
+
     },
     logoSection: {
         padding: "0 20px",
@@ -604,7 +599,7 @@ const css = {
         padding: isOpen ? "12px 16px" : "12px",
     }),
 
-    /* ── Main Content ── */
+
     main: {
         flex: 1,
         display: "flex",
@@ -822,7 +817,7 @@ const css = {
         boxShadow: "0 6px 15px rgba(91, 101, 220, 0.2)",
     },
 
-    /* AI Modal */
+
     modalOverlay: {
         position: "fixed",
         inset: 0,

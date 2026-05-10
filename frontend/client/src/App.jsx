@@ -9,11 +9,10 @@ function App() {
     return (
         <BrowserRouter>
             <Routes>
-                {/* Auth Routes */}
+
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
 
-                {/* Protected Routes */}
                 <Route
                     path="/dashboard"
                     element={
@@ -31,7 +30,6 @@ function App() {
                     }
                 />
 
-                {/* Default Redirect */}
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Routes>
         </BrowserRouter>
