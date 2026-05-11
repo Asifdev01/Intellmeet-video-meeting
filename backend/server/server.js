@@ -14,9 +14,23 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
+const allowedOrigins = [
+    process.env.CLIENT_URL,
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174"
+];
+
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.CLIENT_URL || "*",
+        origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+                callback(null, true);
+            } else {
+                callback(new Error("Not allowed by CORS"));
+            }
+        },
         methods: ["GET", "POST"]
     },
 });
@@ -24,7 +38,13 @@ const io = new Server(httpServer, {
 initializeSocket(io);
 
 app.use(cors({
-    origin: process.env.CLIENT_URL || "*",
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+            callback(null, true);
+        } else {
+            callback(new Error("Not allowed by CORS"));
+        }
+    },
     credentials: true
 }));
 app.use(express.json());

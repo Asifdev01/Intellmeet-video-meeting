@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createMeeting, getMeetings, generateMeetingSummary } from "../services/meetingService";
 import { logout } from "../services/authService";
-
+import DocumentTab from "../components/DocumentTab";
+import ChatRoomTab from "../components/ChatRoomTab";
+import ScheduleMeetingTab from "../components/ScheduleMeetingTab";
+import SettingsTab from "../components/SettingsTab";
 const Dashboard = () => {
     const [meetings, setMeetings] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -207,8 +210,10 @@ const Dashboard = () => {
                 </header>
 
                 <div style={css.scrollArea}>
-                    <div style={css.hero}>
-                        <div style={css.actionCard}>
+                    {sidebarActive === "Home" && (
+                        <>
+                            <div style={css.hero}>
+                                <div style={css.actionCard}>
                             <div style={css.actionIcon}>
                                 <IconVideo />
                             </div>
@@ -296,6 +301,12 @@ const Dashboard = () => {
                             </div>
                         )}
                     </div>
+                        </>
+                    )}
+                    {sidebarActive === "Document" && <DocumentTab />}
+                    {sidebarActive === "Chat Room" && <ChatRoomTab />}
+                    {sidebarActive === "Schedule Meeting" && <ScheduleMeetingTab />}
+                    {sidebarActive === "Settings" && <SettingsTab />}
                 </div>
             </div>
 
