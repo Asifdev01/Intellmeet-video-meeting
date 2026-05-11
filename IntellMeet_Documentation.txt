@@ -214,7 +214,7 @@ MongoDB's document-based nature is highly flexible. It allows for easy storage o
 - JWT verification: A robust custom middleware checks the Authorization header for a valid Bearer token. If invalid or expired, the request is rejected with a 401 Unauthorized status.
 - Protected routes: React Router wraps restricted pages in a <ProtectedRoute> component, redirecting unauthenticated users to the login screen. Backend routes use the protect middleware to secure API data.
 - Secure API handling: CORS (Cross-Origin Resource Sharing) is configured to restrict unauthorized domains from accessing the API.
-- Environment variables: Sensitive data like JWT_SECRET, MONGO_URI, and OPENAI_API_KEY are stored in .env files and never committed to version control.
+- Environment variables: Sensitive data like JWT_SECRET, MONGO_URI, and GROQ_API_KEY are stored in .env files and never committed to version control.
 
 --------------------------------------------------------------------------------
 12. CHALLENGES FACED IN THIS PROJECT

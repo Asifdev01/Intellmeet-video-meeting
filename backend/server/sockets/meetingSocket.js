@@ -15,18 +15,19 @@ export const initializeSocket = (io) => {
 
             activeUsers[roomId] = activeUsers[roomId].filter(u => u.socketId !== socket.id);
 
-            activeUsers[roomId].push({
+            const newUser = {
                 socketId: socket.id,
                 userId,
                 userName: userName || "Participant",
-            });
+            };
+
+            activeUsers[roomId].push(newUser);
 
 
-            socket.to(roomId).emit("user-joined", {
-                socketId: socket.id,
-                userId,
-                userName: userName || "Participant",
-            });
+            socket.to(roomId).emit("user-joined", newUser);
+
+            // Send full list to the new user
+            socket.emit("active-participants", activeUsers[roomId]);
 
             console.log(`User "${userName}" (socket ${socket.id}) joined room ${roomId}`);
         });

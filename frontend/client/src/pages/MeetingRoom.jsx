@@ -4,6 +4,7 @@ import { socket } from "../services/socket";
 import VideoPlayer from "../components/VideoPlayer";
 import { peerConfig } from "../services/webrtc";
 import { getCurrentUser } from "../services/authService";
+import EmojiPicker from 'emoji-picker-react';
 
 
 const avatarColors = [
@@ -161,6 +162,18 @@ const MeetingRoom = () => {
     const [isCameraOff, setIsCameraOff] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [mediaError, setMediaError] = useState("");
+    const [showEmoji, setShowEmoji] = useState(false);
+    const [toasts, setToasts] = useState([]);
+    const [activeTab, setActiveTab] = useState("chat");
+    const [participants, setParticipants] = useState([]);
+
+    const addToast = (msg) => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, msg }]);
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, 3000);
+    };
 
     const typingTimeoutRef = useRef(null);
     const messagesEndRef = useRef(null);
@@ -239,111 +252,156 @@ const MeetingRoom = () => {
 
 
     useEffect(() => {
-        socket.on("user-left", ({ socketId }) => {
-            console.log(`[Meeting] User left: ${socketId}`);
-            peerRef.current?.close();
-            peerRef.current = null;
-            setRemoteStream(null);
-            setRemoteUserName("");
-        });
-        return () => socket.off("user-left");
-    }, []);
-
-
-    useEffect(() => {
-        socket.on("user-joined", async ({ socketId, userName }) => {
-            console.log(`[Meeting] User joined: "${userName}" (${socketId})`);
-
-            setRemoteUserName(userName || "Participant");
+        const createPeer = (targetSocketId) => {
             const peer = new RTCPeerConnection(peerConfig);
             peerRef.current = peer;
-            localStreamRef.current?.getTracks().forEach((t) => peer.addTrack(t, localStreamRef.current));
-            peer.ontrack = (e) => {
-                console.log("Received remote track:", e.track.kind);
-                setRemoteStream(new MediaStream(e.streams[0].getTracks()));
+
+            peer.oniceconnectionstatechange = () => {
+                console.log("[WebRTC] ICE Connection State:", peer.iceConnectionState);
             };
-            peer.onicecandidate = (e) => {
-                if (e.candidate) {
-                    console.log("Sending ICE candidate to", socketId);
-                    socket.emit("ice-candidate", { candidate: e.candidate, to: socketId });
+
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach((t) => peer.addTrack(t, localStreamRef.current));
+            }
+
+            peer.ontrack = (e) => {
+                console.log("[WebRTC] Received remote track:", e.track.kind);
+                if (e.streams && e.streams[0]) {
+                    setRemoteStream(e.streams[0]);
+                } else {
+                    const stream = new MediaStream([e.track]);
+                    setRemoteStream(stream);
                 }
             };
+
+            peer.onicecandidate = (e) => {
+                if (e.candidate) {
+                    console.log("[WebRTC] Sending ICE candidate to", targetSocketId);
+                    socket.emit("ice-candidate", { candidate: e.candidate, to: targetSocketId });
+                }
+            };
+
+            return peer;
+        };
+
+        const handleUserJoined = async ({ socketId, userName }) => {
+            console.log(`[Meeting] User joined: "${userName}" (${socketId})`);
+            setRemoteUserName(userName || "Participant");
+            addToast(`${userName || "A participant"} joined the meeting`);
+
+            const peer = createPeer(socketId);
             const offer = await peer.createOffer();
             await peer.setLocalDescription(offer);
-            console.log("Sending offer to", socketId);
+            console.log("[WebRTC] Sending offer to", socketId);
             socket.emit("offer", { offer, to: socketId });
-        });
-        return () => socket.off("user-joined");
-    }, []);
+        };
 
-
-    useEffect(() => {
-        socket.on("offer", async ({ offer, from }) => {
-            const peer = new RTCPeerConnection(peerConfig);
-            peerRef.current = peer;
-            localStreamRef.current?.getTracks().forEach((t) => peer.addTrack(t, localStreamRef.current));
-            peer.ontrack = (e) => {
-                console.log("Received remote track:", e.track.kind);
-                setRemoteStream(new MediaStream(e.streams[0].getTracks()));
-            };
-            peer.onicecandidate = (e) => {
-                if (e.candidate) {
-                    console.log("Sending ICE candidate to", from);
-                    socket.emit("ice-candidate", { candidate: e.candidate, to: from });
-                }
-            };
+        const handleOffer = async ({ offer, from }) => {
+            console.log("[WebRTC] Received offer from", from);
+            const peer = createPeer(from);
             await peer.setRemoteDescription(new RTCSessionDescription(offer));
+
             const answer = await peer.createAnswer();
             await peer.setLocalDescription(answer);
-            console.log("Sending answer to", from);
+            console.log("[WebRTC] Sending answer to", from);
             socket.emit("answer", { answer, to: from });
 
-
             if (pendingCandidatesRef.current.length > 0) {
-                console.log("Processing", pendingCandidatesRef.current.length, "pending candidates");
+                console.log("[WebRTC] Processing", pendingCandidatesRef.current.length, "pending candidates");
                 pendingCandidatesRef.current.forEach((candidate) => {
                     peer.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error("Error adding pending candidate", e));
                 });
                 pendingCandidatesRef.current = [];
             }
-        });
-        return () => socket.off("offer");
-    }, []);
+        };
 
-
-    useEffect(() => {
-        socket.on("answer", async ({ answer }) => {
+        const handleAnswer = async ({ answer }) => {
+            console.log("[WebRTC] Received answer");
             if (peerRef.current) {
-                console.log("Received answer, setting remote description");
                 await peerRef.current.setRemoteDescription(new RTCSessionDescription(answer));
 
-
                 if (pendingCandidatesRef.current.length > 0) {
-                    console.log("Processing", pendingCandidatesRef.current.length, "pending candidates after answer");
+                    console.log("[WebRTC] Processing", pendingCandidatesRef.current.length, "pending candidates after answer");
                     pendingCandidatesRef.current.forEach((candidate) => {
                         peerRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error("Error adding pending candidate", e));
                     });
                     pendingCandidatesRef.current = [];
                 }
             }
-        });
-        return () => socket.off("answer");
-    }, []);
+        };
 
-    useEffect(() => {
-        socket.on("ice-candidate", async ({ candidate }) => {
+        const handleIceCandidate = async ({ candidate }) => {
             if (peerRef.current && peerRef.current.remoteDescription) {
                 try {
                     await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate));
                 } catch (e) {
-                    console.error("Error adding ICE candidate", e);
+                    console.error("[WebRTC] Error adding ICE candidate", e);
                 }
             } else {
-                console.log("Queuing ICE candidate (peer not ready)");
+                console.log("[WebRTC] Queuing ICE candidate (peer not ready)");
                 pendingCandidatesRef.current.push(candidate);
             }
+        };
+
+        const handleUserLeft = ({ socketId }) => {
+            console.log(`[Meeting] User left: ${socketId}`);
+            addToast(`${remoteUserName || "A participant"} left the meeting`);
+            peerRef.current?.close();
+            peerRef.current = null;
+            setRemoteStream(null);
+            setRemoteUserName("");
+            pendingCandidatesRef.current = [];
+        };
+
+        socket.on("active-participants", (users) => {
+            console.log("[Meeting] Active participants:", users);
+            setParticipants(users);
         });
-        return () => socket.off("ice-candidate");
+
+        socket.on("user-joined", (user) => {
+            const { socketId, userName } = user;
+            console.log(`[Meeting] User joined: "${userName}" (${socketId})`);
+            setRemoteUserName(userName || "Participant");
+            addToast(`${userName || "A participant"} joined the meeting`);
+            setParticipants(prev => {
+                const exists = prev.find(u => u.socketId === socketId);
+                if (exists) return prev;
+                return [...prev, user];
+            });
+
+            const peer = createPeer(socketId);
+            const offer = await peer.createOffer();
+            await peer.setLocalDescription(offer);
+            console.log("[WebRTC] Sending offer to", socketId);
+            socket.emit("offer", { offer, to: socketId });
+        });
+
+        socket.on("offer", handleOffer);
+        socket.on("answer", handleAnswer);
+        socket.on("ice-candidate", handleIceCandidate);
+
+        socket.on("user-left", ({ socketId }) => {
+            console.log(`[Meeting] User left: ${socketId}`);
+            setParticipants(prev => {
+                const user = prev.find(u => u.socketId === socketId);
+                if (user) addToast(`${user.userName || "A participant"} left the meeting`);
+                return prev.filter(u => u.socketId !== socketId);
+            });
+            peerRef.current?.close();
+            peerRef.current = null;
+            setRemoteStream(null);
+            setRemoteUserName("");
+            pendingCandidatesRef.current = [];
+        });
+
+        return () => {
+            socket.off("active-participants");
+            socket.off("user-joined");
+            socket.off("offer");
+            socket.off("answer");
+            socket.off("ice-candidate");
+            socket.off("user-left");
+        };
     }, []);
 
 
@@ -367,9 +425,40 @@ const MeetingRoom = () => {
         if (track) { track.enabled = !track.enabled; setIsMuted(!track.enabled); }
     };
 
-    const toggleCamera = () => {
-        const track = localStreamRef.current?.getVideoTracks()[0];
-        if (track) { track.enabled = !track.enabled; setIsCameraOff(!track.enabled); }
+    const toggleCamera = async () => {
+        if (!isCameraOff) {
+            const track = localStreamRef.current?.getVideoTracks()[0];
+            if (track) {
+                track.stop();
+            }
+            setIsCameraOff(true);
+        } else {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const newTrack = stream.getVideoTracks()[0];
+
+                const newStream = new MediaStream([
+                    newTrack,
+                    ...(localStreamRef.current ? localStreamRef.current.getAudioTracks() : [])
+                ]);
+
+                setLocalStream(newStream);
+                localStreamRef.current = newStream;
+
+                if (peerRef.current) {
+                    const sender = peerRef.current.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (sender) {
+                        sender.replaceTrack(newTrack);
+                    } else {
+                        peerRef.current.addTrack(newTrack, newStream);
+                    }
+                }
+                setIsCameraOff(false);
+            } catch (err) {
+                console.error("Could not restart camera", err);
+                addToast("Could not access camera");
+            }
+        }
     };
 
     const leaveRoom = () => {
@@ -419,6 +508,16 @@ const MeetingRoom = () => {
         <div style={css.root}>
             <style>{globalCSS}</style>
 
+            {toasts.length > 0 && (
+                <div style={{ position: "absolute", top: 24, left: "50%", transform: "translateX(-50%)", zIndex: 1000, display: "flex", flexDirection: "column", gap: 8 }}>
+                    {toasts.map(t => (
+                        <div key={t.id} style={{ background: "#122056", color: "#FFF", padding: "12px 24px", borderRadius: "8px", fontSize: 14, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", animation: "fadeIn 0.3s ease" }}>
+                            {t.msg}
+                        </div>
+                    ))}
+                </div>
+            )}
+
             <aside style={css.sidebar}>
                 <div style={css.logoArea}>
                     <div style={css.logoIcon}>
@@ -428,17 +527,17 @@ const MeetingRoom = () => {
                 <div style={css.sideNav}>
                     {["home", "video", "doc", "chat", "bell", "settings"].map((icon, i) => (
                         <button key={icon} style={{ ...css.sideBtn, ...(icon === "video" ? css.sideBtnActive : {}) }}>
-                            {icon === "home" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>}
-                            {icon === "video" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>}
-                            {icon === "doc" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>}
-                            {icon === "chat" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>}
-                            {icon === "bell" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>}
-                            {icon === "settings" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>}
+                            {icon === "home" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></svg>}
+                            {icon === "video" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></svg>}
+                            {icon === "doc" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>}
+                            {icon === "chat" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>}
+                            {icon === "bell" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>}
+                            {icon === "settings" && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>}
                         </button>
                     ))}
                 </div>
                 <button onClick={leaveRoom} style={css.sideExit}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
                 </button>
             </aside>
 
@@ -450,9 +549,9 @@ const MeetingRoom = () => {
                     </div>
                     <div style={css.headerRight}>
                         <div style={css.userPill}>
-                                <Avatar name={myName} size={28} />
-                                <span style={css.userName}>{myName}</span>
-                            </div>
+                            <Avatar name={myName} size={28} />
+                            <span style={css.userName}>{myName}</span>
+                        </div>
                     </div>
                 </header>
 
@@ -464,7 +563,7 @@ const MeetingRoom = () => {
                                 {localStream && !isCameraOff ? (
                                     <VideoPlayer stream={localStream} muted />
                                 ) : (
-                                    <div style={css.thumbPlaceholder}><Avatar name={myName} size={40}/></div>
+                                    <div style={css.thumbPlaceholder}><Avatar name={myName} size={40} /></div>
                                 )}
                                 <div style={css.thumbLabel}>{myName} (You)</div>
                             </div>
@@ -500,7 +599,12 @@ const MeetingRoom = () => {
                     <footer style={css.controlPill}>
                         <div style={css.roomIdBox}>
                             <span style={css.roomLabel}>Meeting ID</span>
-                            <span style={css.roomValue}>{roomId?.slice(0, 8)}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={css.roomValue}>{roomId}</span>
+                                <button onClick={() => { navigator.clipboard.writeText(roomId); addToast("Meeting ID copied!"); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#5B65DC", padding: 4, display: "flex", alignItems: "center" }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                </button>
+                            </div>
                         </div>
                         <div style={css.btnGroup}>
                             <CtrlBtn onClick={toggleMute} active={!isMuted} label={isMuted ? "Unmute" : "Mute"}>
@@ -523,45 +627,86 @@ const MeetingRoom = () => {
 
             <aside style={css.chatContainer}>
                 <div style={css.panelHeader}>
-                    <button style={{...css.tab, ...css.tabActive}}>Chat</button>
-                    <button style={css.tab}>Participants ({remoteStream ? 2 : 1})</button>
-                </div>
-
-                <div style={css.chatList}>
-                    {messages.length === 0 && (
-                        <div style={css.chatEmpty}>No messages yet. Send a greeting to the patient.</div>
-                    )}
-                    {messages.map((msg, i) => {
-                        const isOwn = msg.senderId === socket.id;
-                        const sender = msg.sender || remoteUserName || "Participant";
-                        return (
-                            <div key={i} style={{ ...css.msgGroup, alignItems: isOwn ? "flex-end" : "flex-start" }}>
-                                {!isOwn && <div style={css.msgSender}>{sender}</div>}
-                                <div style={isOwn ? css.bubbleOwn : css.bubbleOther}>
-                                    {msg.message}
-                                </div>
-                                <div style={css.msgMeta}>{msg.time ? formatTime(new Date(msg.time)) : ""}</div>
-                            </div>
-                        );
-                    })}
-                    {typing && <div style={css.typingIndicator}>{typing}</div>}
-                    <div ref={messagesEndRef} />
-                </div>
-
-                <div style={css.chatInputArea}>
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={message}
-                        onChange={(e) => { setMessage(e.target.value); handleTyping(); }}
-                        onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
-                        placeholder="Send a message..."
-                        style={css.chatInput}
-                    />
-                    <button onClick={sendMessage} style={css.chatSendBtn}>
-                        <IconSend />
+                    <button
+                        onClick={() => setActiveTab("chat")}
+                        style={{ ...css.tab, ...(activeTab === "chat" ? css.tabActive : {}) }}
+                    >
+                        Chat
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("participants")}
+                        style={{ ...css.tab, ...(activeTab === "participants" ? css.tabActive : {}) }}
+                    >
+                        Participants ({participants.length})
                     </button>
                 </div>
+
+                {activeTab === "chat" ? (
+                    <>
+                        <div style={css.chatList}>
+                            {messages.length === 0 && (
+                                <div style={css.chatEmpty}>No messages yet. Send a greeting to the patient.</div>
+                            )}
+                            {messages.map((msg, i) => {
+                                const isOwn = msg.senderId === socket.id;
+                                const sender = msg.sender || remoteUserName || "Participant";
+                                return (
+                                    <div key={i} style={{ ...css.msgGroup, alignItems: isOwn ? "flex-end" : "flex-start" }}>
+                                        {!isOwn && <div style={css.msgSender}>{sender}</div>}
+                                        <div style={isOwn ? css.bubbleOwn : css.bubbleOther}>
+                                            {msg.message}
+                                        </div>
+                                        <div style={css.msgMeta}>{msg.time ? formatTime(new Date(msg.time)) : ""}</div>
+                                    </div>
+                                );
+                            })}
+                            {typing && <div style={css.typingIndicator}>{typing}</div>}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        <div style={css.chatInputArea}>
+                            <div style={{ position: "relative" }}>
+                                <button onClick={() => setShowEmoji(!showEmoji)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", height: 48, width: 40, color: "#8B94B1" }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></svg>
+                                </button>
+                                {showEmoji && (
+                                    <div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: 8, zIndex: 100 }}>
+                                        <EmojiPicker onEmojiClick={(e) => { setMessage(prev => prev + e.emoji); setShowEmoji(false); }} theme="light" />
+                                    </div>
+                                )}
+                            </div>
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={message}
+                                onChange={(e) => { setMessage(e.target.value); handleTyping(); }}
+                                onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
+                                placeholder="Send a message..."
+                                style={css.chatInput}
+                            />
+                            <button onClick={sendMessage} style={css.chatSendBtn}>
+                                <IconSend />
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                    <div style={css.participantList}>
+                        {participants.map((p) => (
+                            <div key={p.socketId} style={css.participantItem}>
+                                <Avatar name={p.userName} size={32} />
+                                <div style={css.participantInfo}>
+                                    <div style={css.participantName}>
+                                        {p.userName} {p.socketId === socket.id ? "(You)" : ""}
+                                    </div>
+                                    <div style={css.participantStatus}>
+                                        <div style={{ ...css.statusDot, background: "#10B981" }} />
+                                        Online
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </aside>
         </div>
     );
@@ -584,6 +729,11 @@ const globalCSS = `
     100% { transform: scale(1); opacity: 1; }
   }
   .pulse { animation: pulse 2s infinite ease-in-out; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 
   video {
     width: 100%; height: 100%;
@@ -800,6 +950,41 @@ const css = {
     },
     tabActive: {
         color: "#5B65DC",
+    },
+    participantList: {
+        flex: 1,
+        padding: "24px",
+        overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+    },
+    participantItem: {
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "10px",
+        borderRadius: "12px",
+        background: "#FAFAFD",
+        border: "1px solid #EEEFFD",
+    },
+    participantInfo: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+    },
+    participantName: {
+        fontSize: 14,
+        fontWeight: 700,
+        color: "#122056",
+    },
+    participantStatus: {
+        fontSize: 11,
+        fontWeight: 600,
+        color: "#8B94B1",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
     },
     chatList: {
         flex: 1,

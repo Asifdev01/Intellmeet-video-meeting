@@ -3,12 +3,13 @@ import OpenAI from 'openai';
 
 
 export const generateMeetingSummary = async (transcript) => {
-    if (!process.env.OPENAI_API_KEY) {
-        throw new Error("OPENAI_API_KEY is missing. Please add it to the .env file.");
+    if (!process.env.GROQ_API_KEY) {
+        throw new Error("GROQ_API_KEY is missing. Please add it to the .env file.");
     }
 
     const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.GROQ_API_KEY,
+        baseURL: "https://api.groq.com/openai/v1",
     });
 
     try {
@@ -37,7 +38,7 @@ ${transcript}
 `;
 
         const response = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
+            model: "llama3-8b-8192",
             messages: [
                 { role: "system", content: "You are an AI meeting assistant. You must respond with valid JSON." },
                 { role: "user", content: prompt }

@@ -166,7 +166,7 @@ Create .env
 PORT=5000
 MONGO_URI=your_mongodb_connection
 JWT_SECRET=your_secret
-OPENAI_API_KEY=your_openai_key
+GROQ_API_KEY=your_openai_key
 CLIENT_URL=http://localhost:5173
 
 Run backend:
@@ -194,7 +194,7 @@ Backend .env
 PORT=
 MONGO_URI=
 JWT_SECRET=
-OPENAI_API_KEY=
+GROQ_API_KEY=
 CLIENT_URL=
 ---------------------------------------------------------------------------------------------------------
 API Endpoints
