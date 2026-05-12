@@ -274,6 +274,17 @@ const MeetingRoom = () => {
                 }
             };
 
+            peer.onnegotiationneeded = async () => {
+                try {
+                    console.log("[WebRTC] Negotiation needed, creating offer...");
+                    const offer = await peer.createOffer();
+                    await peer.setLocalDescription(offer);
+                    socket.emit("offer", { offer, to: targetSocketId });
+                } catch (err) {
+                    console.error("[WebRTC] Negotiation error:", err);
+                }
+            };
+
             peer.onicecandidate = (e) => {
                 if (e.candidate) {
                     console.log("[WebRTC] Sending ICE candidate to", targetSocketId);
@@ -282,18 +293,6 @@ const MeetingRoom = () => {
             };
 
             return peer;
-        };
-
-        const handleUserJoined = async ({ socketId, userName }) => {
-            console.log(`[Meeting] User joined: "${userName}" (${socketId})`);
-            setRemoteUserName(userName || "Participant");
-            addToast(`${userName || "A participant"} joined the meeting`);
-
-            const peer = createPeer(socketId);
-            const offer = await peer.createOffer();
-            await peer.setLocalDescription(offer);
-            console.log("[WebRTC] Sending offer to", socketId);
-            socket.emit("offer", { offer, to: socketId });
         };
 
         const handleOffer = async ({ offer, from }) => {
@@ -343,22 +342,12 @@ const MeetingRoom = () => {
             }
         };
 
-        const handleUserLeft = ({ socketId }) => {
-            console.log(`[Meeting] User left: ${socketId}`);
-            addToast(`${remoteUserName || "A participant"} left the meeting`);
-            peerRef.current?.close();
-            peerRef.current = null;
-            setRemoteStream(null);
-            setRemoteUserName("");
-            pendingCandidatesRef.current = [];
-        };
-
         socket.on("active-participants", (users) => {
             console.log("[Meeting] Active participants:", users);
             setParticipants(users);
         });
 
-        socket.on("user-joined", (user) => {
+        socket.on("user-joined", async (user) => {
             const { socketId, userName } = user;
             console.log(`[Meeting] User joined: "${userName}" (${socketId})`);
             setRemoteUserName(userName || "Participant");
