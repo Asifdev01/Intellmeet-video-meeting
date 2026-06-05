@@ -182,7 +182,17 @@ const MeetingRoom = () => {
     const localStreamRef = useRef(null);
     const pendingCandidatesRef = useRef({});
 
-
+    // Handle Socket Reconnection for Render deployments
+    useEffect(() => {
+        const handleReconnect = () => {
+            console.log("[Meeting] Socket reconnected, re-joining room...");
+            socket.emit("join-room", { roomId, userId: socket.id, userName: myName });
+        };
+        socket.on("connect", handleReconnect);
+        return () => {
+            socket.off("connect", handleReconnect);
+        };
+    }, [roomId, myName]);
 
     useEffect(() => {
         socket.on("receive-message", (data) => {
@@ -369,6 +379,11 @@ const MeetingRoom = () => {
 
         const handleActiveParticipants = (users) => {
             console.log("[Meeting] Active participants:", users);
+            // Ensure local user is always in the list if the server missed it
+            const hasLocal = users.some(u => u.socketId === socket.id);
+            if (!hasLocal) {
+                users.push({ socketId: socket.id, userName: myName });
+            }
             setParticipants(users);
         };
 
