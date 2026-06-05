@@ -351,12 +351,33 @@ const Dashboard = () => {
                         <div style={css.modalBody}>
                             {(!activeAiMeeting.summary && !activeAiMeeting.actionItems?.length) || aiGenerating ? (
                                 <div style={css.aiInputSection}>
-                                    <p style={css.aiHelperText}>
-                                        Paste meeting notes or a transcript below to generate clinical summaries and action items.
-                                    </p>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                                        <p style={css.aiHelperText}>
+                                            Paste meeting notes or a transcript below to generate clinical summaries and action items.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAiTranscript("Dr. Smith: Hello, John. How have you been feeling since we adjusted your lisinopril dosage to 20mg daily?\nJohn Doe: Hi, doctor. The headaches are gone, and my home blood pressure checks have been around 125 over 80.\nDr. Smith: That is excellent news. Your blood pressure looks much better. Let's keep you on lisinopril 20mg once daily.\nJohn Doe: Sounds good. Should I come back for another blood test?\nDr. Smith: Yes, let's check your kidney function and potassium levels in 3 months. I'll send the lab order today. Please schedule that appointment with the front desk.\nJohn Doe: Okay, will do. Thank you, Doctor.")}
+                                            style={{
+                                                background: "#EEEFFD",
+                                                border: "1px dashed #5B65DC",
+                                                color: "#5B65DC",
+                                                cursor: "pointer",
+                                                fontSize: "12px",
+                                                fontWeight: "bold",
+                                                borderRadius: "8px",
+                                                padding: "6px 12px",
+                                                whiteSpace: "nowrap",
+                                                transition: "all 0.2s ease"
+                                            }}
+                                            className="icon-hover"
+                                        >
+                                            Load Example Template
+                                        </button>
+                                    </div>
                                     <textarea
                                         style={css.aiTextarea}
-                                        placeholder="Paste transcript here..."
+                                        placeholder={`Paste transcript here...\n\nExample format:\nDr. Sarah: How is your knee doing after the surgery?\nPatient: It feels much better, doctor. The pain is down to a 2/10.\nDr. Sarah: Great. Continue physical therapy twice a week. Let's follow up in 4 weeks.`}
                                         value={aiTranscript}
                                         onChange={(e) => setAiTranscript(e.target.value)}
                                         disabled={aiGenerating}

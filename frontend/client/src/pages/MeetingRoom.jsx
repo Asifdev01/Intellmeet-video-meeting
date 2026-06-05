@@ -181,8 +181,6 @@ const MeetingRoom = () => {
     const peersRef = useRef({});
     const localStreamRef = useRef(null);
     const pendingCandidatesRef = useRef({});
-
-    // Handle Socket Reconnection for Render deployments
     useEffect(() => {
         const handleReconnect = () => {
             console.log("[Meeting] Socket reconnected, re-joining room...");
@@ -379,7 +377,6 @@ const MeetingRoom = () => {
 
         const handleActiveParticipants = (users) => {
             console.log("[Meeting] Active participants:", users);
-            // Ensure local user is always in the list if the server missed it
             const hasLocal = users.some(u => u.socketId === socket.id);
             if (!hasLocal) {
                 users.push({ socketId: socket.id, userName: myName });

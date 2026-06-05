@@ -28,7 +28,7 @@ export const initializeSocket = (io) => {
 
             socket.to(roomId).emit("user-joined", newUser);
 
-            // Send full list to the new user
+            
             socket.emit("active-participants", activeUsers[roomId]);
 
             console.log(`User "${userName}" (socket ${socket.id}) joined room ${roomId}`);
