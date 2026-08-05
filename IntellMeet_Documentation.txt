@@ -6,45 +6,48 @@
 1. PROJECT OVERVIEW
 --------------------------------------------------------------------------------
 What IntellMeet is:
-IntellMeet is a comprehensive, full-stack video conferencing and real-time collaboration platform designed for professional and secure communication. Built using the MERN stack (MongoDB, Express.js, React.js, Node.js) alongside WebRTC and Socket.io, it offers an end-to-end solution for modern remote meetings.
+IntellMeet is a comprehensive, full-stack video conferencing, real-time collaboration, and meeting productivity platform designed for professional and secure communication. Built using the MERN stack (MongoDB, Express.js, React.js, Node.js) alongside WebRTC and Socket.io, it offers an end-to-end solution for modern remote meetings.
 
 Purpose of the project:
-The primary purpose of IntellMeet is to provide a seamless, highly accessible, and intelligent meeting environment that doesn't just connect people visually and audibly, but also enhances productivity through AI-driven meeting summaries and action item generation.
+The primary purpose of IntellMeet is to provide a seamless, highly accessible, and intelligent meeting environment that doesn't just connect people visually and audibly, but also enhances post-meeting productivity. Through AI-driven meeting intelligence, it extracts summaries, key decisions, action items, and sentiments from meeting transcripts, transforming verbal discussions into structured assets.
 
 Problems it solves:
 - Dependency on expensive, enterprise-locked video conferencing tools.
-- Difficulty in manually tracking meeting minutes and assigning action items.
+- Difficulty in manually tracking meeting minutes, key decisions, and assigning action items.
 - Lack of customizable, secure, and privacy-focused communication channels.
+- Inefficient post-meeting workflow tracking.
 
 Main objective of the platform:
-To deliver a robust, scalable, and responsive real-time communication platform where users can instantly create or join secure meeting rooms, share their audio/video streams, communicate via text, and obtain automated intelligent meeting summaries.
+To deliver a robust, scalable, and responsive real-time communication platform where users can instantly create or join secure meeting rooms, share their audio/video streams, communicate via text, schedule upcoming meetings, manage AI-generated summaries in a document hub, and update personalized meeting hardware preferences.
 
-Real-world use case of the project:
-- Telehealth/Medical consultations where a doctor and patient can securely connect.
-- Remote enterprise team stand-ups and sprint planning.
-- Online education and virtual classrooms.
+Real-world use cases of the project:
+- Telehealth/Medical consultations where doctors and patients can securely connect, share streams, and automatically save clinical summaries and follow-ups.
+- Remote enterprise team stand-ups, sprint planning, and retrospective sessions.
+- Online education, virtual classrooms, and tutoring sessions.
 
 Why this project is useful:
-It packages essential remote collaboration features into an intuitive interface while introducing cutting-edge AI summarization, effectively reducing the administrative overhead of post-meeting reviews.
+It packages essential remote collaboration features into a single, intuitive interface while introducing cutting-edge AI summarization, effectively reducing the administrative overhead of post-meeting reviews.
 
 --------------------------------------------------------------------------------
 2. FEATURES OF THE PROJECT
 --------------------------------------------------------------------------------
-- User Authentication: Secure sign-up and sign-in processes utilizing bcrypt for password hashing and JSON Web Tokens (JWT) for session management.
-- Register/Login system: Fully validated forms with clear error handling to guide users during account creation and access.
+- User Authentication: Secure registration and login processes utilizing bcrypt for password hashing and JSON Web Tokens (JWT) for stateless session management.
+- Register/Login system: Fully validated forms with clear error handling to guide users during account creation and dashboard access.
 - JWT authentication: Stateless and secure authentication mechanism.
 - Protected routes: Frontend and backend route guards ensuring only authenticated users can access the dashboard and meeting rooms.
-- Dashboard: A centralized user hub to view recent consultations, generate AI summaries from transcripts, and quickly join or start new meetings.
+- Dashboard: A centralized user hub to manage recent consultations, schedule meetings, access global chat, manage saved documents, and toggle account preferences.
 - Meeting creation: Instant generation of unique, secure room IDs using UUIDs.
-- Join meeting functionality: Ability to enter a specific room ID and instantly connect to an ongoing session.
+- Join meeting functionality: Ability to enter a specific room ID or shareable link and instantly connect to an ongoing session.
 - Video calling: High-quality, low-latency peer-to-peer video streaming.
 - WebRTC integration: Core technology used for establishing direct media streams between peers without going through a central server.
-- Socket.io real-time communication: Signaling server implementation for WebRTC, handling room joining, chatting, and connection states.
+- Socket.io real-time communication: Signaling server implementation for WebRTC, handling room joining, chat messaging, and connection states.
+- Screen sharing: Share entire screen/window/tab with dynamic stream replacement using replaceTrack() and automatic camera stream restoration.
+- Camera and microphone access: Browser-native media device permission handling with hardware event state synchronizations.
+- Global Chat Room: Persistent global chat room where authenticated users can converse in real-time, complete with custom styling, user indicators, and message history database persistence.
+- Schedule Meetings: Dedicated scheduler allowing users to create future meetings with a title, date, and time, generating unique room links that can be copied directly to the clipboard.
+- Saved Documents Management: A workspace panel displaying all saved meeting summaries. Users can search documents, delete records, or download them locally as TXT files.
+- Meeting Preferences (Settings): Dedicated profile settings page allowing users to update their credentials and customize default join states (mute mic on join, turn off camera on join).
 - Responsive UI: Fluid layouts and adaptive grids built with modern CSS to ensure perfect display on desktops, tablets, and mobile devices.
-- User session handling: Persistent login states via local storage and secure token passing.
-- Meeting room UI: A professional interface featuring video grids, floating controls (mute, video off, screen share, leave), and a side panel for chat and participants.
-- Camera and microphone access: Browser-native media device permission handling with seamless toggles.
-- Frontend and backend communication: Robust REST API structured with Axios for all database-driven operations.
 
 --------------------------------------------------------------------------------
 3. COMPLETE TECH STACK
@@ -53,24 +56,29 @@ Frontend:
 - React.js: Chosen for its component-based architecture, making it highly efficient to build interactive UIs like the meeting room and dashboard.
 - React Router: Essential for single-page application (SPA) navigation, allowing seamless transitions between login, dashboard, and meeting rooms.
 - Axios: A promise-based HTTP client used for making clean, reliable API requests to the backend.
-- Tailwind CSS / Vanilla CSS: Used for crafting a custom, responsive, and premium design system with dynamic layouts.
+- Vanilla CSS: Used for crafting a custom, responsive, and premium design system with dynamic layouts.
+- Socket.io-client: Client-side WebSocket implementation to connect to the signaling and global chat server.
 
 Backend:
 - Node.js: Provides an asynchronous, event-driven JavaScript runtime environment perfect for handling concurrent connections in a real-time app.
 - Express.js: A minimalist web framework that simplifies routing, middleware integration, and API endpoint creation.
-- MongoDB: A NoSQL database that offers flexible schema design, perfect for storing varied user data, meetings, and AI summaries.
+- MongoDB: A NoSQL database that offers flexible schema design, perfect for storing varied user profiles, meetings, chats, documents, and scheduled sessions.
 - Mongoose: An ODM (Object Data Modeling) library for MongoDB that provides schema validation and relationship mapping.
 
 Realtime & Video:
-- Socket.io: Enables bi-directional, event-based communication. It acts as the signaling server to exchange WebRTC connection details (offers, answers, ICE candidates).
+- Socket.io: Enables bi-directional, event-based communication. It acts as the signaling server to exchange WebRTC connection details (offers, answers, ICE candidates) and drives the real-time global chat.
 - WebRTC: Web Real-Time Communication API used for capturing and streaming audio and video directly between browsers.
 
-Authentication:
+AI Integration:
+- Groq Cloud API / OpenAI SDK: Leverages the `llama-3.3-70b-versatile` model for lightning-fast, structured JSON meeting summaries, extracting key decisions, action items, and sentiment.
+
+Authentication & Helpers:
 - JWT (JSON Web Tokens): Used for securely transmitting information between parties as a JSON object, specifically for stateless user sessions.
-- bcrypt: A password-hashing function designed to securely store user passwords in the database.
+- bcryptjs: A password-hashing function designed to securely store user credentials in the database.
+- UUID: Used to generate unique room identifiers for instant and scheduled meetings.
 
 Deployment:
-- Vercel: Ideal for hosting the Vite React frontend with instant CI/CD.
+- Vercel: Ideal for hosting the React frontend with instant CI/CD.
 - Render / Railway: Suitable for hosting the Node.js/Socket.io backend, ensuring WebSocket connections remain stable.
 
 --------------------------------------------------------------------------------
@@ -79,7 +87,7 @@ Deployment:
 - Frontend flow: The React app initializes. If a user has a valid JWT in local storage, they access the Dashboard. They interact with UI components which trigger Axios requests or Socket.io events.
 - Backend flow: Express server listens for HTTP requests and Socket.io events. Middleware intercepts secure API calls to verify JWTs before passing requests to controllers.
 - API communication: RESTful architecture where the client requests data (e.g., GET /api/meetings) and the server responds with JSON.
-- Database interaction: Controllers use Mongoose models to query or mutate documents in MongoDB (e.g., saving a new user or meeting record).
+- Database interaction: Controllers use Mongoose models to query or mutate documents in MongoDB (e.g., saving a new user, meeting record, message, scheduled meeting, or document).
 - Socket connection flow: When a user enters a room, the frontend Socket.io client emits a "join-room" event. The server places the socket in a specific room and broadcasts the presence to other users.
 - WebRTC peer connection flow: 
   1. User A joins and signals presence.
@@ -88,183 +96,219 @@ Deployment:
   4. User A receives the 'Offer', sets remote description, creates an 'Answer', and sends it back.
   5. Both exchange ICE candidates (network routing info) to establish a direct P2P media stream.
 - Authentication flow: User submits credentials -> Server hashes/verifies password -> Server issues JWT -> Client stores JWT -> Client sends JWT in Authorization header for subsequent requests.
+- AI Documents Generation flow: User submits a transcript -> Server calls Groq API -> Parses structured JSON data -> Saves to Meeting document -> Automatically creates a standalone Document record for the user's workspace.
 
 --------------------------------------------------------------------------------
 5. HOW THE PROJECT WORKS STEP BY STEP
 --------------------------------------------------------------------------------
-1. User creates account: The user fills out the registration form. The client sends data to /api/auth/register.
-2. Password gets encrypted: The backend uses bcrypt to hash the password before saving the new user document to MongoDB.
-3. User logs in: User enters email and password. Backend verifies credentials and returns a JWT.
-4. JWT token generated: The client stores the JWT and redirects to the Dashboard.
-5. User enters dashboard: The client fetches the user's past meetings using the JWT. The user can view history or request AI summaries.
-6. User creates/joins room: User clicks "New Meeting" (generates UUID and DB record) or enters a Room ID to join.
-7. Socket connection established: Upon entering the Meeting Room component, socket.io-client connects to the server and joins the specific room ID channel.
-8. WebRTC exchange starts: The browser requests camera/mic permissions. Once granted, it initiates the Offer/Answer signaling process over the Socket connection.
-9. Audio/video stream shared: RTCPeerConnection resolves ICE candidates and establishes a direct connection. Tracks are added to the HTML <video> elements.
-10. Real-time communication happens: Users can now see/hear each other, toggle media states, and send text messages via Socket events.
+1. User creates account: The user fills out the registration form. The client sends data to `/api/auth/register` (uses bcrypt for secure hashing).
+2. User logs in: User enters credentials. Backend verifies them and returns a JWT token and user profile object. The client stores the token/user and redirects to the Dashboard.
+3. User accesses Dashboard: The dashboard loads the default "Home" page, fetching the user's past meetings, saved documents count, and scheduled sessions.
+4. User updates settings: In the "Settings" tab, the user can modify their display name, email, password, and default hardware toggles (e.g. mute mic on join). These updates are saved in MongoDB.
+5. User schedules a meeting: In the "Schedule Meeting" tab, the user fills in a title, date, and time. The app generates a UUID-based meeting link. This record is saved to the scheduled meetings list and the link can be copied to the clipboard.
+6. User starts/joins a meeting: The user clicks "Start Meeting" or joins an active room by ID. The hardware toggles set in user settings are automatically applied to the camera and microphone.
+7. WebRTC exchange starts: Upon entering the meeting room, the browser requests camera/mic permissions. Once granted, the Socket.io connection coordinates the WebRTC signaling (Offer/Answer/ICE) between peers.
+8. Real-time collaboration: Peer streams are connected. Users can chat inside the meeting, toggle camera/microphone states, and share their screens.
+9. Generating AI summaries: Post-meeting, a user clicks "AI Summary" on the dashboard. They paste a transcript (or use the built-in example template) and hit generate.
+10. AI Summary Processing: The Groq API analyzes the transcript and outputs a structured summary, action items (with assignees and deadlines), decisions, and sentiment.
+11. Document persistence: The summary is saved to the Meeting record and automatically added to the "Documents" workspace.
+12. Accessing saved documents: In the "Document" tab, the user can search through saved summaries, download a compiled TXT file of a meeting's intelligence, or delete obsolete summaries.
+13. Global Chat: In the "Chat Room" tab, the user connects to a persistent room where all logged-in platform users can exchange messages, synced in real-time and backed by database history.
 
 --------------------------------------------------------------------------------
 6. MAIN CONCEPTS TO LEARN FOR BUILDING THIS PROJECT
 --------------------------------------------------------------------------------
 Frontend:
-- React fundamentals: Components, props, and lifecycle management.
-- Hooks: useState, useEffect, useRef (critical for WebRTC and DOM manipulation).
-- State management: Managing complex states like active streams, messages, and UI toggles.
-- Routing: Implementing protected routes with React Router.
-- API calls: Handling async requests and error states with Axios.
-- Responsive design: Using CSS Grid/Flexbox for adaptable UI layouts.
+- React fundamentals: Component structures, state management, props, and lifecycle methods.
+- Hooks: useState, useEffect, useRef (critical for WebRTC, DOM references, and chat scroll control).
+- Routing: Single-page application navigation and protected route guards using React Router.
+- API requests: Asynchronous REST calls, payload structures, and error boundary handling with Axios.
+- Real-time client: Emitting and listening to WebSocket events, and maintaining connection states.
+- Client-side file generation: Generating and downloading virtual files on-the-fly using Blobs and object URLs (`URL.createObjectURL`).
+- Clipboard interaction: Interfacing with the navigator clipboard API to copy room links.
 
 Backend:
-- REST APIs: Designing endpoints, handling HTTP methods and status codes.
-- Express routing: Structuring modular route files.
-- Middleware: Creating interceptors for JWT validation and error handling.
-- Authentication: Understanding hashing, salting, and stateless tokens.
-- MongoDB CRUD operations: Creating, reading, updating, and deleting documents via Mongoose.
+- REST APIs: Express routes, URL parameters, request payloads, and standardized HTTP status responses.
+- Middleware: Custom interceptors for token verification, authentication verification, and global error handling.
+- Authentication: Salting, hashing, password validation, and secure token emission.
+- MongoDB CRUD operations: Creating schemas, writing queries, and modifying nested fields/arrays using Mongoose.
+- Socket.io signaling: Room management, namespace isolation, client-to-client message routing, and connection lifecycles.
 
-Advanced:
-- WebRTC basics: Understanding Peer-to-Peer architecture vs Client-Server.
-- ICE candidates: Interactive Connectivity Establishment for bypassing NATs/Firewalls using STUN servers.
-- SDP offer/answer: Session Description Protocol for negotiating media capabilities.
-- Socket.io events: Emitting, broadcasting, and listening to custom events.
-- Real-time communication: Handling latency, disconnections, and state synchronization.
-- Video streaming basics: Working with navigator.mediaDevices and MediaStream APIs.
+AI & WebRTC:
+- WebRTC architecture: MediaStream acquisition, RTCPeerConnection negotiations, local/remote descriptions, and ICE candidate exchanges.
+- Media Capture API: Accessing media inputs (navigator.mediaDevices) and handling display sources (getDisplayMedia) for screen sharing.
+- JSON response structuring: Prompting LLMs to output syntactically valid JSON matching a target schema.
+- API Fallbacks: Implementing robust fallback mechanisms to maintain app stability during API failures or rate-limits.
 
 --------------------------------------------------------------------------------
 7. IMPORTANT MODULES EXPLAINED
 --------------------------------------------------------------------------------
-- Authentication module: Consists of authRoutes.js and authController.js. It securely manages user registration and login, ensuring passwords are never stored in plaintext and issuing JWTs for secure access.
-- Meeting module: Consists of meetingRoutes.js and meetingController.js. It handles the CRUD operations for meeting sessions, including creating a room, joining a room, and generating AI summaries via OpenAI integration.
-- Socket module: Located in sockets/meetingSocket.js. It acts as the traffic controller for real-time events. It manages which users are in which rooms and securely routes WebRTC signaling data (offers, answers, ICE candidates) only to intended recipients.
-- Video communication module: The frontend MeetingRoom.jsx and webrtc.js. It leverages the browser's native WebRTC API to acquire local media, establish peer connections, and render incoming remote streams.
-- Database module: Centralized in config/db.js and models/. It defines the schemas for Users and Meetings, ensuring data integrity and providing a clean interface for controllers to interact with MongoDB.
-- UI module: The collection of React components (e.g., VideoPlayer.jsx, Dashboard.jsx). It translates application state into a responsive, user-friendly interface.
+- Authentication module: (`authRoutes.js` and `authController.js`) Securely manages user registration, login, credentials validation, and session issuance.
+- Meeting module: (`meetingRoutes.js` and `meetingController.js`) Manages instant meeting configurations, user joining logs, and the transcript summarization workflow.
+- Socket module: (`sockets/meetingSocket.js`) Manages signaling relays for WebRTC and distributes text messages in meeting rooms and the global room.
+- Document module: (`documentRoutes.js` and `documentController.js`) Handles saved meeting intelligence summaries, allowing users to query their summaries and delete/download them.
+- Chat module: (`chatRoutes.js` and `chatController.js`) Persists and retrieves global chat history.
+- Scheduled Meetings module: (`scheduledMeetingRoutes.js` and `scheduledMeetingController.js`) Manages scheduling logic, generating meeting links, and tracking upcoming calendars.
+- Settings module: (`settingsRoutes.js` and `settingsController.js`) Handles profile changes and default hardware state settings.
+- Video communication module: (`MeetingRoom.jsx` and `webrtc.js`) Connects to local hardware streams, establishes connections with peers, and handles screen share toggle track swapping.
 
 --------------------------------------------------------------------------------
 8. FOLDER STRUCTURE EXPLANATION
 --------------------------------------------------------------------------------
 Frontend:
-- components/: Reusable UI building blocks (e.g., VideoPlayer, ProtectedRoute).
-- pages/: Main view components mapped to routes (e.g., Login, Signup, Dashboard, MeetingRoom).
-- services/: Modules for external communication (API wrappers for auth, meetings, socket instance, webrtc config).
-- assets/: Static files like images or global CSS files.
+- `components/`: Contains UI elements and tab panels:
+  * `DocumentTab.jsx`: Saved documents search, view, download, and delete actions.
+  * `ChatRoomTab.jsx`: Global chat container with historical messages and input.
+  * `ScheduleMeetingTab.jsx`: Calendar scheduling form and list of scheduled sessions.
+  * `SettingsTab.jsx`: Account credentials form and hardware checkboxes.
+  * `VideoPlayer.jsx`: Video grid rendering node.
+  * `ProtectedRoute.jsx`: Authentication route guard.
+- `pages/`: Main page routes:
+  * `Dashboard.jsx`: Main dashboard interface housing the sidebar navigation and tabs.
+  * `MeetingRoom.jsx`: Video grid room with floating toolbar controls and side-panels.
+  * `Login.jsx` & `Signup.jsx`: Credentials validation forms.
+- `services/`: API client wrappers:
+  * `authService.js`, `meetingService.js`, `documentService.js`, `chatService.js`, `scheduledMeetingService.js`, `settingsService.js`, `socket.js`, `webrtc.js`.
 
 Backend:
-- routes/: Express router definitions mapping URLs to controller functions.
-- controllers/: Business logic for handling API requests and sending responses.
-- models/: Mongoose database schemas defining the structure of data (User, Meeting).
-- middleware/: Functions that run before controllers (e.g., JWT verification in authMiddleware.js).
-- sockets/: Real-time event listeners and emitters handling Socket.io logic.
-- config/: Configuration files, such as database connection setup.
+- `routes/`: Express routers (`authRoutes.js`, `meetingRoutes.js`, `documentRoutes.js`, `chatRoutes.js`, `scheduledMeetingRoutes.js`, `settingsRoutes.js`).
+- `controllers/`: API controller endpoints (`authController.js`, `meetingController.js`, `documentController.js`, `chatController.js`, `scheduledMeetingController.js`, `settingsController.js`).
+- `models/`: Mongoose schemas (`User.js`, `Meeting.js`, `Document.js`, `ChatMessage.js`, `ScheduledMeeting.js`).
+- `middleware/`: Middlewares like `authMiddleware.js` for JWT verification.
+- `sockets/`: Sockets gateway handlers (`meetingSocket.js`, `socketHandler.js`).
+- `config/`: Database connect file (`db.js`).
+- `services/`: External integrations (`aiService.js`).
 
 --------------------------------------------------------------------------------
 9. DATABASE DESIGN
 --------------------------------------------------------------------------------
-User schema:
-- Fields: name (String), email (String, unique), password (String, hashed).
-- Purpose: Stores registered user credentials and profile data.
+User Schema:
+- Fields:
+  * name (String)
+  * email (String, unique)
+  * password (String, hashed)
+  * settings (Object: { muteMicOnJoin: Boolean, disableCameraOnJoin: Boolean })
+- Purpose: Stores user credentials, email validation keys, and default meeting hardware preferences.
 
-Meeting schema:
-- Fields: title (String), roomId (String, unique UUID), createdBy (ObjectId, ref: User), participants (Array of ObjectIds, ref: User), transcript (String), summary (String), actionItems (Array of objects).
-- Purpose: Tracks meeting sessions, who participated, and stores AI-generated summaries.
+Meeting Schema:
+- Fields:
+  * title (String)
+  * roomId (String, unique UUID)
+  * createdBy (ObjectId, ref: User)
+  * participants (Array of ObjectIds, ref: User)
+  * transcript (String)
+  * summary (String)
+  * actionItems (Array of Objects: { task: String, assignee: String, deadline: String })
+  * decisionPoints (Array of Strings)
+  * sentiment (String)
+- Purpose: Tracks completed or ongoing meeting records and hosts their summary metadata.
 
-Relationships:
-- A Meeting references a User in createdBy.
-- A Meeting references multiple Users in the participants array.
+Document Schema:
+- Fields:
+  * title (String)
+  * summary (String)
+  * actionItems (Array of Objects: { task: String, assignee: String, deadline: String })
+  * decisionPoints (Array of Strings)
+  * sentiment (String)
+  * createdBy (ObjectId, ref: User)
+- Purpose: Stores isolated meeting intelligence summaries inside the user's workspace, supporting file download.
 
-Why MongoDB is suitable:
-MongoDB's document-based nature is highly flexible. It allows for easy storage of dynamic arrays like participants and nested objects like actionItems without complex SQL join tables. It perfectly complements the JavaScript ecosystem (JSON).
+ChatMessage Schema:
+- Fields:
+  * sender (String)
+  * message (String)
+  * timestamps
+- Purpose: Maintains a persistent record of global chat conversations.
+
+ScheduledMeeting Schema:
+- Fields:
+  * title (String)
+  * date (String)
+  * time (String)
+  * participants (Array of Strings)
+  * meetingLink (String)
+  * createdBy (ObjectId, ref: User)
+- Purpose: Tracks future meetings created by users for scheduling purposes.
 
 --------------------------------------------------------------------------------
 10. API ENDPOINTS
 --------------------------------------------------------------------------------
-1. Register API
-   - Route: POST /api/auth/register
-   - Purpose: Create a new user account.
-   - Request body: { "name": "John", "email": "john@ex.com", "password": "pass" }
-   - Response: User object and JWT token.
+Authentication:
+- `POST /api/auth/register` - Create user profile and generate token.
+- `POST /api/auth/login` - Verify user credentials and generate session token.
 
-2. Login API
-   - Route: POST /api/auth/login
-   - Purpose: Authenticate an existing user.
-   - Request body: { "email": "john@ex.com", "password": "pass" }
-   - Response: User object and JWT token.
+Meetings:
+- `POST /api/meetings/` (Protected) - Instantiate new meeting and register room ID.
+- `GET /api/meetings/` (Protected) - Fetch meeting list containing current user as participant.
+- `POST /api/meetings/join/:roomId` (Protected) - Append user to a meeting's participant array.
+- `POST /api/meetings/:roomId/generate-summary` (Protected) - Process transcript, trigger AI service, and create document.
 
-3. Create meeting API
-   - Route: POST /api/meetings/ (Protected)
-   - Purpose: Generate a new meeting room in the database.
-   - Request body: { "title": "Optional Title" }
-   - Response: Meeting object including the generated roomId.
+Documents:
+- `GET /api/documents` (Protected) - Retrieve saved documents for the active user.
+- `POST /api/documents` (Protected) - Manually create a document.
+- `DELETE /api/documents/:id` (Protected) - Delete document by database ID.
 
-4. Join meeting API
-   - Route: POST /api/meetings/join/:roomId (Protected)
-   - Purpose: Add the current user to the participants list of a meeting.
-   - Request body: None
-   - Response: Meeting object.
+Chat Room:
+- `GET /api/chat/messages` (Protected) - Fetch history of global chat room messages.
 
-5. Generate Summary API
-   - Route: POST /api/meetings/:roomId/generate-summary (Protected)
-   - Purpose: Use AI to process a transcript and return actionable insights.
-   - Request body: { "transcript": "Meeting text..." }
-   - Response: Generated summary and action items.
+Scheduled Meetings:
+- `GET /api/scheduled-meetings` (Protected) - Retrieve user's future meetings.
+- `POST /api/scheduled-meetings` (Protected) - Register a future meeting.
+- `DELETE /api/scheduled-meetings/:id` (Protected) - Cancel/delete scheduled meeting.
+
+Settings:
+- `GET /api/settings` (Protected) - Retrieve current user's profile and settings.
+- `PUT /api/settings` (Protected) - Update name, email, password, and hardware preferences.
 
 --------------------------------------------------------------------------------
 11. SECURITY IMPLEMENTATION
 --------------------------------------------------------------------------------
-- Password hashing: Implemented using bcryptjs with a salt round of 10. Passwords are never logged or stored in plain text.
-- JWT verification: A robust custom middleware checks the Authorization header for a valid Bearer token. If invalid or expired, the request is rejected with a 401 Unauthorized status.
-- Protected routes: React Router wraps restricted pages in a <ProtectedRoute> component, redirecting unauthenticated users to the login screen. Backend routes use the protect middleware to secure API data.
-- Secure API handling: CORS (Cross-Origin Resource Sharing) is configured to restrict unauthorized domains from accessing the API.
-- Environment variables: Sensitive data like JWT_SECRET, MONGO_URI, and GROQ_API_KEY are stored in .env files and never committed to version control.
+- Password Security: Hashed with bcryptjs (salt rounds = 10) before MongoDB saves.
+- Router Security: REST controllers protect endpoint calls with `authMiddleware`, verifying JWT validity. Frontend router blocks unauthenticated pages using a `<ProtectedRoute>` wrapper.
+- Authorization Checks: API routes verify ownership before mutating resources (e.g., verifying a user is a participant before generating summaries, and checking the `createdBy` field before deleting scheduled meetings/documents).
+- CORS Configuration: CORS rules restrict access to the Express app and Socket endpoints to configured domains.
+- Environment Isolation: Crucial API keys, JWT secrets, and DB URLs are saved in a local `.env` file, excluded from source control.
 
 --------------------------------------------------------------------------------
-12. CHALLENGES FACED IN THIS PROJECT
+12. CHALLENGES & SOLUTIONS
 --------------------------------------------------------------------------------
-- WebRTC connection issues: Managing the asynchronous nature of WebRTC signaling. Ensuring ICE candidates are queued if the remote description isn't set yet was a significant hurdle.
-- Socket synchronization: Handling edge cases where a user disconnects abruptly or refreshing the page breaks the socket connection state.
-- Media device permissions: Browsers block autoplaying video and strictly enforce HTTPS or localhost for accessing the camera and microphone, requiring careful error handling for denied permissions.
-- State management: Managing complex, interconnected states in the React component (e.g., local stream, remote stream, UI toggles) without causing infinite re-renders.
-- AI API constraints: Handling OpenAI rate limits and designing fallback mechanisms (mock summaries) to ensure the application remains functional even when API quotas are exceeded.
+- Asynchronous WebRTC Signaling: Deferring ICE candidate storage when the local description is not fully set was resolved by establishing connection-state handlers.
+- WebSocket State Synchronization: Handling socket disconnects and page refreshes. Mitigated by room isolation and clearing socket listener bindings on React components' unmount.
+- Media Stream Permissions & Settings: Gracefully managing rejected camera/mic permissions. IntellMeet uses settings check hooks to auto-mute or disable video tracks according to user preference.
+- AI Service Limits & Fallbacks: Integrated error catch checks in `aiService.js` to handle 429 rate limits or quota overages, falling back on mock templates while keeping the front-end active.
+- File Assembly in Browser: Compiling structured summary text into a client-downloadable file was solved by assembling text structures inside a text-plain Blob object and downloading via simulated links.
 
 --------------------------------------------------------------------------------
 13. WHAT I LEARNED FROM THIS PROJECT
 --------------------------------------------------------------------------------
-- Full-stack integration: Successfully bridging a React frontend with a Node/Express backend.
-- Real-time communication: Deeply understanding WebSockets and how they differ from standard HTTP requests.
-- WebRTC implementation: Learning the intricacies of Peer-to-Peer connections, STUN servers, and handling media streams directly in the browser.
-- Authentication systems: Implementing secure, industry-standard JWT authentication from scratch.
-- State management: Utilizing React hooks effectively to manage complex, asynchronous events.
-- Error handling: Providing graceful fallbacks and user-friendly error messages for hardware access failures and network issues.
+- Media track manipulation: How to swap audio and video tracks dynamically during live stream calls (like screen sharing) without dropping calls.
+- WebSockets: Building bi-directional notification channels and chat messaging structures using Socket.io.
+- LLM Output Constraints: Forcing LLM endpoints to output standard JSON structures, parsing output strings, and mapping fields to models.
+- Browser API Integrations: Managing Blobs, Object URLs, navigator clipboards, and local media streams.
+- Database Schema Relationships: Structuring cross-references between user, meeting, scheduled, and document schemas.
 
 --------------------------------------------------------------------------------
 14. FUTURE IMPROVEMENTS
 --------------------------------------------------------------------------------
-- Screen sharing: Refining the current screen sharing implementation to support audio sharing alongside video.
-- Multi-party video calls: Upgrading the 1-to-1 WebRTC mesh network into a scalable SFU (Selective Forwarding Unit) architecture to support group meetings.
-- Chat system: Upgrading the basic chat to include file sharing, image uploads, and persistent chat history stored in the database.
-- Recording meetings: Implementing MediaRecorder API to allow users to save video/audio of the meeting locally or to cloud storage.
-- Real-time Transcription: Integrating a live Speech-to-Text API during the meeting to generate the transcript automatically, rather than manual input.
-- Calendar integration: Allowing users to schedule meetings ahead of time and syncing with Google Calendar or Outlook.
+- Redis Integration: Migrating `activeUsers` in-memory object to Redis database and using the Socket.io Redis Adapter to achieve horizontal scalability.
+- Token Window Management: Implementing Map-Reduce/chunking methods for long meeting transcripts to prevent token overflow crashes.
+- TURN Server Deployment: Configuring TURN server paths in WebRTC configurations to ensure connectivity for users behind corporate symmetric NAT firewalls.
+- Real-Time Transcription: Implementing Speech-to-Text APIs to dynamically record and translate verbal interactions to transcripts during active meetings.
+- Calendar Sync: Syncing scheduled meetings to external services (Google Calendar, Outlook).
 
 --------------------------------------------------------------------------------
 15. COMPLETE PROJECT WORKFLOW SUMMARY
 --------------------------------------------------------------------------------
-1. Frontend: The user accesses the React app, authenticates, and requests to join a meeting.
-2. Backend: Express validates the JWT, and MongoDB logs the user as a participant in the requested meeting room.
-3. Socket.io: The server registers the user in a specific Socket room and alerts existing members.
-4. WebRTC: The browser acquires the camera/mic. The frontend uses Socket.io to securely exchange WebRTC Offers, Answers, and ICE candidates with the remote peer.
-5. User Communication: A direct, secure Peer-to-Peer connection is established. Video, audio, and data (chat messages) flow seamlessly in real-time. Post-meeting, the user can utilize the AI service for an intelligent summary.
+1. Authentication: User signs in, receiving a JWT which the browser saves in localStorage.
+2. Setup: User goes to Settings and sets preference toggles.
+3. Scheduling: User schedules a future sync, copies the invite link, and distributes it.
+4. Meeting Launch: User clicks to join the room. Settings are checked, camera/mic tracks are toggled to match user settings, and Socket.io connects the client to signaling.
+5. Live Stream: WebRTC establishes a peer-to-peer connection. Video, audio, screen tracks, and chat messages exchange in real-time.
+6. Summary Trigger: After meeting closure, the user copies the meeting chat/transcript, opens the AI modal, and triggers the summary generation request.
+7. AI parsing: The Groq API analyzes the text, extracts action items, decisions, and sentiment, saves the results to the meeting document, and writes a copy to the Documents dashboard tab.
+8. Document Access: User opens the Documents tab, searches for the meeting, and downloads a clean summary TXT file.
 
 --------------------------------------------------------------------------------
 16. CONCLUSION
 --------------------------------------------------------------------------------
-Overall project impact:
-IntellMeet successfully demonstrates the ability to build a highly complex, scalable, and secure real-time communication platform using modern web technologies. It eliminates the friction of traditional video conferencing tools while introducing intelligent productivity enhancements.
-
-Technical learning outcome:
-This project serves as a comprehensive masterclass in integrating WebRTC for P2P media, Socket.io for real-time signaling, and the MERN stack for robust data and user management. It highlights the importance of asynchronous programming, state management, and strict security protocols.
-
-Real-world applicability:
-The architecture and features implemented in IntellMeet are directly applicable to enterprise-level applications, telehealth software, and online education platforms, proving its substantial commercial viability.
-
-Why this is a strong resume-level project:
-It showcases proficiency across the entire full-stack spectrum—from responsive UI design and complex React state management to backend API architecture, real-time networking, and database modeling. It proves the ability to tackle difficult, real-world engineering challenges (like WebRTC signaling) and deliver a polished, production-ready product.
+IntellMeet demonstrates the capability to build a feature-rich, scalable, and secure real-time collaboration ecosystem. From JWT profile management to real-time WebRTC streams, persistent WebSocket chat, future schedules, and automated AI summary exports, it showcases full-stack MERN proficiency, asynchronous JavaScript control, and practical AI application integration.

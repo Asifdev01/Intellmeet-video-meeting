@@ -67,6 +67,32 @@ AI summary viewing
 Action item management
 Responsive dashboard UI
 
+Shared Documents Workspace
+---------------------------------------------------------------------------------------------------------
+Access saved meeting summaries, decisions, action items, and sentiments
+Search documents dynamically
+Download summary documents as plain text files (.txt)
+Delete obsolete summaries
+
+Global Chat Room
+---------------------------------------------------------------------------------------------------------
+Real-time text communication for all platform users
+Historical message logs retrieved from database
+Instant styling and timestamps
+
+Scheduled Meetings Calendar
+---------------------------------------------------------------------------------------------------------
+Schedule future syncs with title, date, and time
+Generate shareable UUID meeting room links
+Copy links to clipboard directly
+Cancel upcoming meetings
+
+User Settings & Preferences
+---------------------------------------------------------------------------------------------------------
+Update display name and email address
+Change account password
+Set default hardware state toggles (mute mic on join, turn off camera on join)
+
 Tech Stack
 ---------------------------------------------------------------------------------------------------------
 Frontend
@@ -213,12 +239,40 @@ POST	/api/meetings	Create meeting
 GET	/api/meetings	Get meetings
 POST	/api/meetings/join/:roomId	Join meeting
 
-
 AI Features
 ---------------------------------------------------------------------------------------------------------
 Method	Endpoint	Description
 ---------------------------------------------------------------------------------------------------------
-POST	/api/meetings/:id/generate-summary	Generate AI summary
+POST	/api/meetings/:roomId/generate-summary	Generate AI summary
+
+Shared Documents
+---------------------------------------------------------------------------------------------------------
+Method	Endpoint	Description
+---------------------------------------------------------------------------------------------------------
+GET	/api/documents	Get saved documents for active user
+POST	/api/documents	Manually create a document
+DELETE	/api/documents/:id	Delete a document by ID
+
+Global Chat
+---------------------------------------------------------------------------------------------------------
+Method	Endpoint	Description
+---------------------------------------------------------------------------------------------------------
+GET	/api/chat/messages	Get global chat message history
+
+Scheduled Meetings
+---------------------------------------------------------------------------------------------------------
+Method	Endpoint	Description
+---------------------------------------------------------------------------------------------------------
+GET	/api/scheduled-meetings	Get user's scheduled meetings
+POST	/api/scheduled-meetings	Schedule a future meeting
+DELETE	/api/scheduled-meetings/:id	Cancel/Delete scheduled meeting
+
+Settings & Preferences
+---------------------------------------------------------------------------------------------------------
+Method	Endpoint	Description
+---------------------------------------------------------------------------------------------------------
+GET	/api/settings	Get user settings/preferences
+PUT	/api/settings	Update profile details & hardware preferences
 
 Socket.io Events
 ---------------------------------------------------------------------------------------------------------

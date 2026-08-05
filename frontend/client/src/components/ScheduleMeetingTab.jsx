@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { getScheduledMeetings, createScheduledMeeting, deleteScheduledMeeting } from "../services/scheduledMeetingService";
+import { useToast } from "./ToastProvider";
 
 const ScheduleMeetingTab = () => {
+    const toast = useToast();
     const [meetings, setMeetings] = useState([]);
     const [title, setTitle] = useState("");
     const [date, setDate] = useState("");
@@ -17,7 +19,7 @@ const ScheduleMeetingTab = () => {
 
     const handleCreate = async () => {
         if (!title || !date || !time) {
-            alert("Please fill all fields");
+            toast.error("Please fill all fields");
             return;
         }
         
@@ -29,7 +31,7 @@ const ScheduleMeetingTab = () => {
             setTime("");
         } catch (error) {
             console.error(error);
-            alert("Failed to schedule meeting");
+            toast.error("Failed to schedule meeting");
         }
     };
 
@@ -121,7 +123,7 @@ const ScheduleMeetingTab = () => {
                             
                             <div style={{ display: "flex", gap: 10 }}>
                                 <button 
-                                    onClick={() => { navigator.clipboard.writeText(m.meetingLink); alert("Link Copied!"); }} 
+                                    onClick={() => { navigator.clipboard.writeText(m.meetingLink); toast.success("Link copied to clipboard!"); }} 
                                     style={{ 
                                         background: "#EEEFFD", 
                                         color: "#5B65DC", 
@@ -142,7 +144,7 @@ const ScheduleMeetingTab = () => {
                                             setMeetings(meetings.filter(x => x._id !== m._id)); 
                                         } catch (e) {
                                             console.error(e);
-                                            alert("Failed to delete");
+                                            toast.error("Failed to delete");
                                         }
                                     }} 
                                     style={{ 

@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { getDocuments, deleteDocument } from "../services/documentService";
+import { useToast } from "./ToastProvider";
 
 const DocumentTab = () => {
+    const toast = useToast();
     const [docs, setDocs] = useState([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
@@ -19,7 +21,7 @@ const DocumentTab = () => {
             setDocs(docs.filter(d => d._id !== id));
         } catch (error) {
             console.error("Failed to delete document:", error);
-            alert("Failed to delete document");
+            toast.error("Failed to delete document");
         }
     };
 

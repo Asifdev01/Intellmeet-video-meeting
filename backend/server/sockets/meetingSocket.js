@@ -88,6 +88,10 @@ export const initializeSocket = (io) => {
             socket.to(data.roomId).emit("user-typing", data);
         });
 
+        socket.on("reaction", (data) => {
+            io.to(data.roomId).emit("reaction", { emoji: data.emoji, senderId: socket.id });
+        });
+
 
         socket.on("disconnect", () => {
             console.log("User disconnected:", socket.id);

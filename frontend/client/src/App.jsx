@@ -4,35 +4,38 @@ import MeetingRoom from "./pages/MeetingRoom";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { ToastProvider } from "./components/ToastProvider";
 
 function App() {
     return (
-        <BrowserRouter>
-            <Routes>
+        <ToastProvider>
+            <BrowserRouter>
+                <Routes>
 
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
 
-                <Route
-                    path="/dashboard"
-                    element={
-                        <ProtectedRoute>
-                            <Dashboard />
-                        </ProtectedRoute>
-                    }
-                />
-                <Route
-                    path="/meeting/:roomId"
-                    element={
-                        <ProtectedRoute>
-                            <MeetingRoom />
-                        </ProtectedRoute>
-                    }
-                />
+                    <Route
+                        path="/dashboard"
+                        element={
+                            <ProtectedRoute>
+                                <Dashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/meeting/:roomId"
+                        element={
+                            <ProtectedRoute>
+                                <MeetingRoom />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-        </BrowserRouter>
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+            </BrowserRouter>
+        </ToastProvider>
     );
 }
 

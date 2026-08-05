@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createMeeting, getMeetings, generateMeetingSummary } from "../services/meetingService";
 import { getDocuments } from "../services/documentService";
@@ -8,11 +8,20 @@ import DocumentTab from "../components/DocumentTab";
 import ChatRoomTab from "../components/ChatRoomTab";
 import ScheduleMeetingTab from "../components/ScheduleMeetingTab";
 import SettingsTab from "../components/SettingsTab";
+import safeRequest from "../services/safeRequest";
+import { mockMeetings } from "../mocks/meetingMocks";
+import { mockDocuments } from "../mocks/documentMocks";
+import { mockScheduledMeetings } from "../mocks/scheduledMeetingMocks";
+import DemoModeBadge from "../components/DemoModeBadge";
+import QRCode from "react-qr-code";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+
 const Dashboard = () => {
     const [meetings, setMeetings] = useState([]);
     const [docs, setDocs] = useState([]);
     const [scheduledMeetings, setScheduledMeetings] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [mockFlags, setMockFlags] = useState({ meetings: false, docs: false, scheduled: false });
     const [joinLink, setJoinLink] = useState("");
     const [sidebarActive, setSidebarActive] = useState("Home");
     const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -21,6 +30,15 @@ const Dashboard = () => {
     const [aiTranscript, setAiTranscript] = useState("");
     const [aiGenerating, setAiGenerating] = useState(false);
     const [aiError, setAiError] = useState("");
+    const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+    const [cmdSearch, setCmdSearch] = useState("");
+    const [calPopoverOpen, setCalPopoverOpen] = useState(false);
+    const [tasks, setTasks] = useState([
+        { id: 1, text: "Review Q3 marketing strategy", done: false },
+        { id: 2, text: "Follow up with new clients", done: true }
+    ]);
+    const [newTask, setNewTask] = useState("");
+    const [tipIdx, setTipIdx] = useState(0);
     const navigate = useNavigate();
     const token = localStorage.getItem("token");
     const userString = localStorage.getItem("user");
@@ -29,14 +47,19 @@ const Dashboard = () => {
 
     const fetchMeetings = async () => {
         try {
-            const [data, docsData, scheduledData] = await Promise.all([
-                getMeetings(token),
-                getDocuments().catch(() => []),
-                getScheduledMeetings().catch(() => [])
+            const [mtgResult, docsResult, schedResult] = await Promise.all([
+                safeRequest(() => getMeetings(token), mockMeetings),
+                safeRequest(() => getDocuments(), mockDocuments),
+                safeRequest(() => getScheduledMeetings(), mockScheduledMeetings),
             ]);
-            setMeetings(data);
-            setDocs(docsData);
-            setScheduledMeetings(scheduledData);
+            setMeetings(mtgResult.data);
+            setDocs(docsResult.data);
+            setScheduledMeetings(schedResult.data);
+            setMockFlags({
+                meetings: mtgResult.isMock,
+                docs: docsResult.isMock,
+                scheduled: schedResult.isMock,
+            });
         } catch (error) {
             console.error(error);
         } finally {
@@ -60,8 +83,51 @@ const Dashboard = () => {
 
         handleResize();
         window.addEventListener("resize", handleResize);
-        return () => window.removeEventListener("resize", handleResize);
+
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+                e.preventDefault();
+                setCmdPaletteOpen(prev => {
+                    if (!prev) setCmdSearch("");
+                    return !prev;
+                });
+            }
+            if (e.key === "Escape") setCmdPaletteOpen(false);
+        };
+        window.addEventListener("keydown", handleKeyDown);
+
+        if (Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+
+        return () => {
+            window.removeEventListener("resize", handleResize);
+            window.removeEventListener("keydown", handleKeyDown);
+        };
     }, [token, navigate]);
+
+    useEffect(() => {
+        const timeouts = [];
+        scheduledMeetings.forEach(m => {
+            const timeToMeeting = new Date(m.date || m.startTime).getTime() - Date.now();
+            const notifyTime = timeToMeeting - 5 * 60 * 1000;
+            if (notifyTime > 0 && notifyTime <= 24 * 60 * 60 * 1000) {
+                const t = setTimeout(() => {
+                    if (Notification.permission === "granted") {
+                        new Notification("Upcoming Meeting", { body: `${m.title} starts in 5 minutes.` });
+                    }
+                }, notifyTime);
+                timeouts.push(t);
+            }
+        });
+        return () => timeouts.forEach(clearTimeout);
+    }, [scheduledMeetings]);
+
+    useEffect(() => {
+        const tips = ["Use Ctrl+K to open the command palette.", "Pin participants to keep them in focus.", "Generate AI summaries instantly.", "Check the calendar for upcoming meetings."];
+        const int = setInterval(() => setTipIdx(p => (p + 1) % tips.length), 6000);
+        return () => clearInterval(int);
+    }, []);
 
     const handleCreateMeeting = async () => {
         try {
@@ -128,11 +194,56 @@ const Dashboard = () => {
 
     const sidebarItems = [
         { name: "Home", icon: <IconHome /> },
+        { name: "Analytics", icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" /></svg> },
         { name: "Document", icon: <IconDoc /> },
         { name: "Chat Room", icon: <IconChat /> },
         { name: "Schedule Meeting", icon: <IconCalendar /> },
         { name: "Settings", icon: <IconSettings /> },
     ];
+
+    const cmdItems = [
+        { name: "Go to Home", action: () => setSidebarActive("Home") },
+        { name: "View Documents", action: () => setSidebarActive("Document") },
+        { name: "Open Chat Room", action: () => setSidebarActive("Chat Room") },
+        { name: "Schedule a Meeting", action: () => setSidebarActive("Schedule Meeting") },
+        { name: "Settings", action: () => setSidebarActive("Settings") },
+        { name: "Start Instant Meeting", action: handleCreateMeeting },
+        { name: "Logout", action: handleLogout }
+    ];
+
+    const filteredCmds = cmdItems.filter(item => item.name.toLowerCase().includes(cmdSearch.toLowerCase()));
+
+    const thisWeekMeetings = meetings.filter(m => new Date(m.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length;
+    const upcomingThisWeek = scheduledMeetings.filter(m => new Date(m.startTime) || new Date(m.date) > new Date() && (new Date(m.startTime) || new Date(m.date)) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)).length;
+    const docsThisWeek = docs.filter(d => new Date(d.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length;
+    
+    const latestSummary = [...meetings].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).find(m => m.summary);
+    
+    const tipsList = ["Use Ctrl+K to open the command palette.", "Pin participants to keep them in focus.", "Generate AI summaries instantly.", "Check the calendar for upcoming meetings."];
+
+    const meetingsByDate = useMemo(() => {
+        const counts = {};
+        meetings.forEach(m => {
+            const dateStr = new Date(m.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            counts[dateStr] = (counts[dateStr] || 0) + 1;
+        });
+        return Object.keys(counts).map(date => ({ date, count: counts[date] })).slice(-7);
+    }, [meetings]);
+
+    const sentimentData = useMemo(() => {
+        let pos = 0, neu = 0, neg = 0;
+        meetings.forEach(m => {
+            const s = (m.sentiment || "").toLowerCase();
+            if (s === "positive") pos++;
+            else if (s === "negative") neg++;
+            else neu++;
+        });
+        return [
+            { name: 'Positive', value: pos, color: '#10B981' },
+            { name: 'Neutral', value: neu, color: '#8B94B1' },
+            { name: 'Negative', value: neg, color: '#EF4444' },
+        ].filter(d => d.value > 0);
+    }, [meetings]);
 
     return (
         <div style={css.root}>
@@ -209,6 +320,22 @@ const Dashboard = () => {
                     </div>
 
                     <div style={css.userBox}>
+                        <div style={{ position: "relative" }}>
+                            <button onClick={() => setCalPopoverOpen(!calPopoverOpen)} className="icon-hover" style={{ background: "transparent", border: "none", color: "#8B94B1", cursor: "pointer", flexShrink: 0 }}>
+                                <IconCalendar />
+                            </button>
+                            {calPopoverOpen && (
+                                <div style={{ position: "absolute", top: 32, right: 0, width: 300, background: "#FFFFFF", borderRadius: 12, boxShadow: "0 10px 30px rgba(18,32,86,0.15)", zIndex: 100, padding: 16, border: "1px solid #EEEFFD" }}>
+                                    <h4 style={{ margin: "0 0 12px 0", fontSize: 14, color: "#122056", fontWeight: 800 }}>Scheduled Meetings</h4>
+                                    {scheduledMeetings.length === 0 ? <p style={{ fontSize: 12, color: "#8B94B1", margin: 0 }}>No upcoming meetings.</p> : scheduledMeetings.slice(0,5).map(m => (
+                                        <div key={m._id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid #EEEFFD" }}>
+                                            <div style={{ fontSize: 13, fontWeight: 700, color: "#122056", marginBottom: 4 }}>{m.title}</div>
+                                            <div style={{ fontSize: 11, color: "#8B94B1", fontWeight: 600 }}>{new Date(m.date || m.startTime).toLocaleString()}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                         <button className="icon-hover" style={{ background: "transparent", border: "none", color: "#8B94B1", cursor: "pointer", flexShrink: 0 }}>
                             <IconBell />
                         </button>
@@ -263,20 +390,93 @@ const Dashboard = () => {
                                 </div>
                             </div>
                             
-                            <div style={{ padding: "0 24px", marginBottom: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
-                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
-                                    <h4 style={{ fontSize: 13, color: "#8B94B1", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>Total Meetings</h4>
-                                    <div style={{ fontSize: 32, fontWeight: 800, color: "#122056" }}>{meetings.length}</div>
-                                </div>
-                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
-                                    <h4 style={{ fontSize: 13, color: "#8B94B1", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>Upcoming Meetings</h4>
-                                    <div style={{ fontSize: 32, fontWeight: 800, color: "#122056" }}>{scheduledMeetings.length}</div>
-                                </div>
-                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
-                                    <h4 style={{ fontSize: 13, color: "#8B94B1", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>Saved Documents</h4>
-                                    <div style={{ fontSize: 32, fontWeight: 800, color: "#122056" }}>{docs.length}</div>
+                            <div style={{ padding: "0 24px", marginBottom: 24 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
+                                    <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
+                                        <h4 style={{ fontSize: 13, color: "#8B94B1", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>Meetings Hosted</h4>
+                                        <div style={{ fontSize: 32, fontWeight: 800, color: "#122056" }}>{thisWeekMeetings}</div>
+                                        <div style={{ fontSize: 12, color: "#10B981", fontWeight: 700, marginTop: 4 }}>↑ Past 7 Days</div>
+                                    </div>
+                                    <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
+                                        <h4 style={{ fontSize: 13, color: "#8B94B1", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>Upcoming</h4>
+                                        <div style={{ fontSize: 32, fontWeight: 800, color: "#122056" }}>{upcomingThisWeek}</div>
+                                        <div style={{ fontSize: 12, color: "#8B94B1", fontWeight: 700, marginTop: 4 }}>This Week</div>
+                                    </div>
+                                    <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
+                                        <h4 style={{ fontSize: 13, color: "#8B94B1", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>Documents Saved</h4>
+                                        <div style={{ fontSize: 32, fontWeight: 800, color: "#122056" }}>{docsThisWeek}</div>
+                                        <div style={{ fontSize: 12, color: "#10B981", fontWeight: 700, marginTop: 4 }}>↑ Past 7 Days</div>
+                                    </div>
                                 </div>
                             </div>
+                            
+                            <div style={{ padding: "0 24px", marginBottom: 32, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
+                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px", display: "flex", flexDirection: "column" }}>
+                                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "#122056", marginBottom: 16 }}>Quick Tasks</h3>
+                                    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                                        <input type="text" value={newTask} onChange={e => setNewTask(e.target.value)} placeholder="Add a task..." style={{...css.joinInput, height: 44}} onKeyDown={e => {
+                                            if(e.key === "Enter" && newTask.trim()) {
+                                                setTasks([...tasks, { id: Date.now(), text: newTask.trim(), done: false }]);
+                                                setNewTask("");
+                                            }
+                                        }} />
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, overflowY: "auto", maxHeight: 180 }}>
+                                        {tasks.map(t => (
+                                            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                                <input type="checkbox" checked={t.done} onChange={() => setTasks(tasks.map(x => x.id === t.id ? {...x, done: !x.done} : x))} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#5B65DC" }} />
+                                                <span style={{ fontSize: 14, fontWeight: 600, color: t.done ? "#8B94B1" : "#122056", textDecoration: t.done ? "line-through" : "none" }}>{t.text}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px", display: "flex", flexDirection: "column" }}>
+                                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "#122056", marginBottom: 16 }}>Today's Schedule</h3>
+                                    <div style={{ flex: 1, overflowY: "auto", maxHeight: 220, paddingRight: 4 }}>
+                                        {scheduledMeetings.length === 0 ? <p style={{ fontSize: 13, color: "#8B94B1", fontWeight: 600 }}>No meetings scheduled for today.</p> : 
+                                            scheduledMeetings.slice(0,4).map((m, idx) => (
+                                                <div key={idx} style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+                                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                                        <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#5B65DC", marginTop: 4 }}></div>
+                                                        {idx !== Math.min(scheduledMeetings.length, 4)-1 && <div style={{ width: 2, flex: 1, background: "#EEEFFD", margin: "4px 0" }}></div>}
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 14, fontWeight: 800, color: "#122056", marginBottom: 4 }}>{m.title}</div>
+                                                        <div style={{ fontSize: 12, color: "#8B94B1", fontWeight: 600 }}>{new Date(m.date || m.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        }
+                                    </div>
+                                </div>
+                                
+                                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                                    <div style={{ background: "linear-gradient(135deg, #122056 0%, #5B65DC 100%)", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.1) 0px 10px 20px 0px", color: "#FFF", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                                        <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px", color: "rgba(255,255,255,0.7)", marginBottom: 12 }}>Tip of the Day</div>
+                                        <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.5 }}>
+                                            {tipsList[tipIdx]}
+                                        </div>
+                                    </div>
+                                    <div style={{ background: "#FFFFFF", padding: 20, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px", border: "1px solid #EEEFFD", flex: 1, display: "flex", flexDirection: "column" }}>
+                                        <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "#8B94B1", marginBottom: 8 }}>Latest AI Summary</div>
+                                        {latestSummary ? (
+                                            <>
+                                                <div style={{ fontSize: 14, fontWeight: 800, color: "#122056", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{latestSummary.title}</div>
+                                                <div style={{ fontSize: 13, color: "#8B94B1", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{latestSummary.summary}</div>
+                                            </>
+                                        ) : (
+                                            <div style={{ fontSize: 13, color: "#8B94B1" }}>No AI summaries available.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {(mockFlags.meetings || mockFlags.docs || mockFlags.scheduled) && (
+                                <div style={{ padding: "0 24px", marginBottom: 12 }}>
+                                    <DemoModeBadge />
+                                </div>
+                            )}
 
                             <div style={css.historySection}>
                                 <h2 style={css.historyTitle}>Recent Consultations</h2>
@@ -297,9 +497,14 @@ const Dashboard = () => {
                                                     <div style={css.cardIcon}>
                                                         <IconVideo />
                                                     </div>
-                                                    <span style={css.cardBadge}>
-                                                        COMPLETED
-                                                    </span>
+                                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                        <span style={css.cardBadge}>
+                                                            COMPLETED
+                                                        </span>
+                                                        <div title="Join via QR Code" style={{ background: '#FAFAFD', padding: 4, borderRadius: 8, border: '1px solid #EEEFFD' }}>
+                                                            <QRCode value={`${window.location.origin}/meeting/${meeting.roomId}`} size={28} />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 <h3 style={css.cardTitle}>{meeting.title || "Medical Consultation"}</h3>
                                                 <p style={css.cardRoomId}>ID: {meeting.roomId}</p>
@@ -330,6 +535,70 @@ const Dashboard = () => {
                                 )}
                             </div>
                         </>
+                    )}
+
+                    {sidebarActive === "Analytics" && (
+                        <div style={{ padding: "24px 32px" }}>
+                            <h2 style={{ fontSize: 24, fontWeight: 800, color: "#122056", marginBottom: 24, letterSpacing: "-0.5px" }}>Analytics Overview</h2>
+                            
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 32 }}>
+                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
+                                    <h4 style={{ fontSize: 13, color: "#8B94B1", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>Total Meetings</h4>
+                                    <div style={{ fontSize: 32, fontWeight: 800, color: "#122056" }}>{meetings.length}</div>
+                                </div>
+                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
+                                    <h4 style={{ fontSize: 13, color: "#8B94B1", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>Avg Duration</h4>
+                                    <div style={{ fontSize: 32, fontWeight: 800, color: "#122056" }}>45m</div>
+                                </div>
+                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
+                                    <h4 style={{ fontSize: 13, color: "#8B94B1", fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>Total Documents</h4>
+                                    <div style={{ fontSize: 32, fontWeight: 800, color: "#122056" }}>{docs.length}</div>
+                                </div>
+                            </div>
+
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 20 }}>
+                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
+                                    <h4 style={{ fontSize: 16, color: "#122056", fontWeight: 800, marginBottom: 20 }}>Meetings over time (Last 7 Days)</h4>
+                                    <div style={{ height: 300 }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={meetingsByDate}>
+                                                <XAxis dataKey="date" stroke="#8B94B1" fontSize={12} tickLine={false} axisLine={false} />
+                                                <YAxis stroke="#8B94B1" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                                                <Tooltip cursor={{ fill: '#FAFAFD' }} contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} />
+                                                <Bar dataKey="count" fill="#5B65DC" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                                <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 20, boxShadow: "rgba(0, 0, 0, 0.02) 0px 1px 3px 0px" }}>
+                                    <h4 style={{ fontSize: 16, color: "#122056", fontWeight: 800, marginBottom: 20 }}>Meeting Sentiment</h4>
+                                    <div style={{ height: 260, display: "flex", justifyContent: "center", alignItems: "center" }}>
+                                        {sentimentData.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie data={sentimentData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" stroke="none">
+                                                        {sentimentData.map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div style={{ color: "#8B94B1", fontSize: 14 }}>No sentiment data available</div>
+                                        )}
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 16 }}>
+                                        {sentimentData.map(d => (
+                                            <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                                <div style={{ width: 10, height: 10, borderRadius: "50%", background: d.color }}></div>
+                                                <span style={{ fontSize: 12, color: "#8B94B1", fontWeight: 600 }}>{d.name} ({d.value})</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
                     {sidebarActive === "Document" && <DocumentTab />}
                     {sidebarActive === "Chat Room" && <ChatRoomTab />}
@@ -459,6 +728,36 @@ const Dashboard = () => {
                                         Re-run Analysis
                                     </button>
                                 </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {cmdPaletteOpen && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(18, 32, 86, 0.4)", backdropFilter: "blur(4px)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "10vh" }} onClick={() => setCmdPaletteOpen(false)}>
+                    <div style={{ background: "#FFFFFF", borderRadius: 16, width: "100%", maxWidth: 500, boxShadow: "0 20px 40px rgba(18,32,86,0.15)", overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{ padding: "16px 20px", borderBottom: "1px solid #EEEFFD", display: "flex", alignItems: "center", gap: 12 }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B94B1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                            <input autoFocus type="text" placeholder="Search commands..." value={cmdSearch} onChange={e => setCmdSearch(e.target.value)} style={{ border: "none", outline: "none", flex: 1, fontSize: 16, color: "#122056" }} />
+                            <div style={{ fontSize: 12, background: "#F3F4F6", padding: "4px 8px", borderRadius: 4, color: "#8B94B1", fontWeight: 700 }}>ESC</div>
+                        </div>
+                        <div style={{ maxHeight: 300, overflowY: "auto", padding: 12 }}>
+                            {filteredCmds.length === 0 ? (
+                                <div style={{ padding: 24, textAlign: "center", color: "#8B94B1", fontSize: 14 }}>No commands found</div>
+                            ) : (
+                                filteredCmds.map((cmd, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => { cmd.action(); setCmdPaletteOpen(false); }}
+                                        style={{ width: "100%", padding: "12px 16px", background: "transparent", border: "none", textAlign: "left", fontSize: 14, fontWeight: 600, color: "#122056", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, transition: "background 0.2s" }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = "#EEEFFD"}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                                    >
+                                        <IconSparkles />
+                                        {cmd.name}
+                                    </button>
+                                ))
                             )}
                         </div>
                     </div>
@@ -824,11 +1123,16 @@ const css = {
         fontWeight: 600,
     },
     meetingGrid: {
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        display: "flex",
+        overflowX: "auto",
+        scrollSnapType: "x mandatory",
         gap: 20,
+        paddingBottom: 20,
     },
     meetingCard: {
+        minWidth: 320,
+        scrollSnapAlign: "start",
+        flexShrink: 0,
         background: "#FFFFFF",
         borderRadius: 24,
         padding: 24,

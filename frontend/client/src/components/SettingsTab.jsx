@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { getSettings, updateSettings } from "../services/settingsService";
+import { useToast } from "./ToastProvider";
 
 const SettingsTab = () => {
+    const toast = useToast();
     const [user, setUser] = useState({ 
         name: "", 
         email: "", 
@@ -37,11 +39,11 @@ const SettingsTab = () => {
             
             const updated = await updateSettings(payload);
             localStorage.setItem("user", JSON.stringify(updated));
-            alert("Settings saved successfully!");
+            toast.success("Settings saved successfully!");
             setPassword("");
         } catch (error) {
             console.error(error);
-            alert("Failed to save settings");
+            toast.error("Failed to save settings");
         } finally {
             setSaving(false);
         }

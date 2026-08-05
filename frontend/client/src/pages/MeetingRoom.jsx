@@ -5,7 +5,8 @@ import VideoPlayer from "../components/VideoPlayer";
 import { peerConfig } from "../services/webrtc";
 import { getCurrentUser } from "../services/authService";
 import EmojiPicker from 'emoji-picker-react';
-
+import { useToast } from "../components/ToastProvider";
+import featureFlags from "../utils/featureFlags";
 
 const avatarColors = [
     { bg: "#E6F1FB", text: "#185FA5" },
@@ -40,24 +41,35 @@ const Avatar = ({ name, size = 34 }) => {
 };
 
 
-const CtrlBtn = ({ onClick, danger, active, children, label }) => (
+const CtrlBtn = ({ onClick, danger, active, disabled, children, label, style = {} }) => (
     <button
-        onClick={onClick}
+        onClick={disabled ? undefined : onClick}
         aria-label={label}
         title={label}
+        disabled={disabled}
         style={{
             width: 44, height: 44, borderRadius: "12px",
             border: danger ? "none" : active ? `2px solid #5B65DC` : "1px solid #e5e7eb",
-            background: danger ? "#FF4D4E" : active ? "#EEEFFD" : "#FFFFFF",
-            color: danger ? "#FFFFFF" : active ? "#5B65DC" : "#122056",
-            cursor: "pointer", display: "flex",
+            background: danger ? "#FF4D4E" : active ? "#EEEFFD" : disabled ? "#F3F4F6" : "#FFFFFF",
+            color: danger ? "#FFFFFF" : active ? "#5B65DC" : disabled ? "#9CA3AF" : "#122056",
+            cursor: disabled ? "not-allowed" : "pointer", display: "flex",
             alignItems: "center", justifyContent: "center",
             transition: "all 0.2s ease",
             boxShadow: "0 2px 6px rgba(18, 32, 86, 0.05)",
+            opacity: disabled ? 0.6 : 1,
+            ...style
         }}
     >
         {children}
     </button>
+);
+
+const IconBlur = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2a10 10 0 0 1 0 20" strokeDasharray="4 4" />
+        <path d="M12 6v12" />
+    </svg>
 );
 
 
@@ -145,12 +157,21 @@ const IconScreenShare = () => (
     </svg>
 );
 
+const IconEmoji = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+        <line x1="9" y1="9" x2="9.01" y2="9" />
+        <line x1="15" y1="9" x2="15.01" y2="9" />
+    </svg>
+);
 
 const MeetingRoom = () => {
     const { roomId } = useParams();
 
-    const currentUser = getCurrentUser();
+    const currentUser = getCurrentUser() || {};
     const myName = currentUser.name || "You";
+    const myUserId = currentUser._id || "guest";
 
     const [message, setMessage] = useState("");
     const [messages, setMessages] = useState([]);
@@ -163,18 +184,24 @@ const MeetingRoom = () => {
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const [mediaError, setMediaError] = useState("");
     const [showEmoji, setShowEmoji] = useState(false);
-    const [toasts, setToasts] = useState([]);
+    const [showReactionPicker, setShowReactionPicker] = useState(false);
+    const [flyingReactions, setFlyingReactions] = useState([]);
+    const [pinnedParticipantId, setPinnedParticipantId] = useState(null);
+    const [layoutMode, setLayoutMode] = useState("speaker"); // "speaker" | "grid"
+    const [networkStats, setNetworkStats] = useState({});
+    const [isBlurOn, setIsBlurOn] = useState(false);
+    const [raisedHands, setRaisedHands] = useState([]);
+    const [isHost, setIsHost] = useState(true); // Demo mode: default to true for testing
+    const blurStateRef = useRef({ active: false, animFrame: null });
+    const originalVideoTrackRef = useRef(null);
+    const toast = useToast();
     const [activeTab, setActiveTab] = useState("chat");
     const [participants, setParticipants] = useState([]);
-
-    const addToast = (msg) => {
-        const id = Date.now();
-        setToasts(prev => [...prev, { id, msg }]);
-        setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id));
-        }, 3000);
-    };
-
+    const [timerOpen, setTimerOpen] = useState(false);
+    const [timerSeconds, setTimerSeconds] = useState(0);
+    const [timerRunning, setTimerRunning] = useState(false);
+    const [masterVolume, setMasterVolume] = useState(1);
+    const [participantVolumes, setParticipantVolumes] = useState({});
     const typingTimeoutRef = useRef(null);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
@@ -194,6 +221,36 @@ const MeetingRoom = () => {
 
     useEffect(() => {
         socket.on("receive-message", (data) => {
+            if (data.type === "COMMAND") {
+                if (data.command === "MUTE_ALL" && data.senderId !== socket.id) {
+                    const track = localStreamRef.current?.getAudioTracks()[0];
+                    if (track && track.enabled) {
+                        track.enabled = false;
+                        setIsMuted(true);
+                        toast.info("You were muted by the host.");
+                    }
+                }
+                if (data.command === "MUTE_ONE" && data.targetId === socket.id) {
+                    const track = localStreamRef.current?.getAudioTracks()[0];
+                    if (track && track.enabled) {
+                        track.enabled = false;
+                        setIsMuted(true);
+                        toast.info("The host muted your microphone.");
+                    }
+                }
+                if (data.command === "RAISE_HAND") {
+                    setRaisedHands((prev) => (prev.includes(data.senderId) ? prev : [...prev, data.senderId]));
+                    if (isHost && data.senderId !== socket.id) toast.info(`${data.sender || "Someone"} raised their hand.`);
+                }
+                if (data.command === "LOWER_HAND") {
+                    if (data.targetId === "ALL") {
+                        setRaisedHands([]);
+                    } else {
+                        setRaisedHands((prev) => prev.filter((id) => id !== data.targetId));
+                    }
+                }
+                return;
+            }
             setMessages((prev) => [...prev, { ...data, time: new Date() }]);
         });
         socket.on("user-typing", (data) => {
@@ -206,6 +263,54 @@ const MeetingRoom = () => {
             socket.off("user-typing");
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         };
+    }, []);
+
+    useEffect(() => {
+        let int;
+        if (timerRunning) {
+            int = setInterval(() => setTimerSeconds(s => s + 1), 1000);
+        }
+        return () => clearInterval(int);
+    }, [timerRunning]);
+
+    const formatTimer = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            const statsObj = {};
+            for (const [socketId, peer] of Object.entries(peersRef.current)) {
+                try {
+                    if (!peer.getStats) continue;
+                    const stats = await peer.getStats();
+                    let quality = "good";
+                    let packetsLost = 0;
+                    let packetsSent = 0;
+                    stats.forEach(report => {
+                        if (report.type === "outbound-rtp") {
+                            packetsSent += report.packetsSent || 0;
+                        }
+                        if (report.type === "remote-inbound-rtp") {
+                            packetsLost += report.packetsLost || 0;
+                            const rtt = report.roundTripTime || 0;
+                            if (rtt > 0.5) quality = "poor";
+                            else if (rtt > 0.2) quality = "fair";
+                        }
+                        if (report.type === "inbound-rtp") {
+                            const jitter = report.jitter || 0;
+                            if (jitter > 0.05) quality = "poor";
+                        }
+                    });
+                    if (packetsSent > 0 && packetsLost / packetsSent > 0.1) quality = "poor";
+                    statsObj[socketId] = quality;
+                } catch (err) {
+                    console.warn("getStats error", err);
+                    statsObj[socketId] = "unsupported";
+                }
+            }
+            statsObj["local"] = "good"; // Assumption for self
+            setNetworkStats(statsObj);
+        }, 3000);
+        return () => clearInterval(interval);
     }, []);
 
 
@@ -387,7 +492,7 @@ const MeetingRoom = () => {
         const handleUserJoined = async (user) => {
             const { socketId, userName } = user;
             console.log(`[Meeting] User joined: "${userName}" (${socketId})`);
-            addToast(`${userName || "A participant"} joined the meeting`);
+            toast.info(`${userName || "A participant"} joined the meeting`);
             setParticipants(prev => {
                 const exists = prev.find(u => u.socketId === socketId);
                 if (exists) return prev;
@@ -407,7 +512,7 @@ const MeetingRoom = () => {
             console.log(`[Meeting] User left: ${socketId}`);
             setParticipants(prev => {
                 const user = prev.find(u => u.socketId === socketId);
-                if (user) addToast(`${user.userName || "A participant"} left the meeting`);
+                if (user) toast.info(`${user.userName || "A participant"} left the meeting`);
                 return prev.filter(u => u.socketId !== socketId);
             });
             if (peersRef.current[socketId]) {
@@ -422,12 +527,21 @@ const MeetingRoom = () => {
             delete pendingCandidatesRef.current[socketId];
         };
 
+        const handleReaction = (data) => {
+            const id = Date.now() + Math.random();
+            setFlyingReactions(prev => [...prev, { id, emoji: data.emoji }]);
+            setTimeout(() => {
+                setFlyingReactions(prev => prev.filter(r => r.id !== id));
+            }, 1500);
+        };
+
         socket.on("active-participants", handleActiveParticipants);
         socket.on("user-joined", handleUserJoined);
         socket.on("offer", handleOffer);
         socket.on("answer", handleAnswer);
         socket.on("ice-candidate", handleIceCandidate);
         socket.on("user-left", handleUserLeft);
+        socket.on("reaction", handleReaction);
 
         return () => {
             socket.off("active-participants", handleActiveParticipants);
@@ -436,8 +550,9 @@ const MeetingRoom = () => {
             socket.off("answer", handleAnswer);
             socket.off("ice-candidate", handleIceCandidate);
             socket.off("user-left", handleUserLeft);
+            socket.off("reaction", handleReaction);
         };
-    }, []);
+    }, [roomId, myName, myUserId]);
 
 
     useEffect(() => {
@@ -493,7 +608,7 @@ const MeetingRoom = () => {
                 setIsCameraOff(false);
             } catch (err) {
                 console.error("Could not restart camera", err);
-                addToast("Could not access camera");
+                toast.error("Could not access camera");
             }
         }
     };
@@ -546,21 +661,99 @@ const MeetingRoom = () => {
         setIsScreenSharing(false);
     };
 
+    const toggleBlur = async () => {
+        if (isBlurOn) {
+            setIsBlurOn(false);
+            blurStateRef.current.active = false;
+            if (blurStateRef.current.animFrame) cancelAnimationFrame(blurStateRef.current.animFrame);
+            if (originalVideoTrackRef.current && localStreamRef.current) {
+                const newStream = new MediaStream([originalVideoTrackRef.current, ...localStreamRef.current.getAudioTracks()]);
+                setLocalStream(newStream);
+                localStreamRef.current = newStream;
+                Object.values(peersRef.current).forEach(peer => {
+                    const sender = peer.getSenders().find(s => s.track?.kind === "video");
+                    if (sender) sender.replaceTrack(originalVideoTrackRef.current);
+                });
+            }
+            return;
+        }
+
+        try {
+            const canvas = document.createElement("canvas");
+            if (!canvas.captureStream) {
+                throw new Error("Canvas captureStream not supported");
+            }
+            
+            // If currently screen sharing, we might not want to blur it, but let's just blur whatever video track is there.
+            const videoTrack = originalVideoTrackRef.current || localStreamRef.current?.getVideoTracks()[0];
+            if (!videoTrack) throw new Error("No local video track");
+            
+            originalVideoTrackRef.current = videoTrack;
+            
+            const video = document.createElement("video");
+            video.srcObject = new MediaStream([videoTrack]);
+            video.muted = true;
+            video.play();
+            
+            canvas.width = 640;
+            canvas.height = 480;
+            const ctx = canvas.getContext("2d");
+            
+            blurStateRef.current.active = true;
+            
+            const drawFrame = () => {
+                if (!blurStateRef.current.active) return;
+                
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    ctx.save();
+                    ctx.filter = "blur(15px)";
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    ctx.filter = "none";
+                    ctx.globalCompositeOperation = "destination-in";
+                    ctx.beginPath();
+                    ctx.ellipse(canvas.width / 2, canvas.height / 2 + 50, 150, 200, 0, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    ctx.globalCompositeOperation = "source-in";
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    ctx.globalCompositeOperation = "destination-over";
+                    ctx.filter = "blur(15px)";
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    ctx.restore();
+                }
+                
+                blurStateRef.current.animFrame = requestAnimationFrame(drawFrame);
+            };
+            
+            drawFrame();
+            
+            const canvasStream = canvas.captureStream(30);
+            const blurTrack = canvasStream.getVideoTracks()[0];
+            
+            const newStream = new MediaStream([blurTrack, ...localStreamRef.current.getAudioTracks()]);
+            setLocalStream(newStream);
+            localStreamRef.current = newStream;
+            
+            Object.values(peersRef.current).forEach(peer => {
+                const sender = peer.getSenders().find(s => s.track?.kind === "video");
+                if (sender) sender.replaceTrack(blurTrack);
+            });
+            
+            setIsBlurOn(true);
+        } catch (err) {
+            console.error("Blur error:", err);
+            toast.error("Background blur not supported: " + err.message);
+            setIsBlurOn(false);
+            blurStateRef.current.active = false;
+        }
+    };
+
 
     return (
         <div style={css.root}>
             <style>{globalCSS}</style>
-
-            {toasts.length > 0 && (
-                <div style={{ position: "absolute", top: 24, left: "50%", transform: "translateX(-50%)", zIndex: 1000, display: "flex", flexDirection: "column", gap: 8 }}>
-                    {toasts.map(t => (
-                        <div key={t.id} style={{ background: "#122056", color: "#FFF", padding: "12px 24px", borderRadius: "8px", fontSize: 14, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", animation: "fadeIn 0.3s ease" }}>
-                            {t.msg}
-                        </div>
-                    ))}
-                </div>
-            )}
-
             <aside style={css.sidebar}>
                 <div style={css.logoArea}>
                     <div style={css.logoIcon}>
@@ -600,101 +793,235 @@ const MeetingRoom = () => {
 
                 <div style={css.content}>
 
-                    {Object.keys(remoteStreams).length > 0 && (
-                        <div style={css.thumbStrip}>
-                            <div style={css.thumbCard}>
-                                {localStream && !isCameraOff ? (
-                                    <VideoPlayer stream={localStream} muted />
-                                ) : (
-                                    <div style={css.thumbPlaceholder}><Avatar name={myName} size={40} /></div>
-                                )}
-                                <div style={css.thumbLabel}>{myName} (You)</div>
-                            </div>
-                            {Object.entries(remoteStreams).slice(1).map(([id, data]) => (
-                                <div key={id} style={css.thumbCard}>
-                                    {data.stream && data.stream.getVideoTracks().length > 0 ? (
-                                        <VideoPlayer stream={data.stream} />
-                                    ) : (
-                                        <div style={css.thumbPlaceholder}><Avatar name={data.userName} size={40} /></div>
-                                    )}
-                                    <div style={css.thumbLabel}>{data.userName}</div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    {(() => {
+                        const allParticipants = [
+                            {
+                                id: "local",
+                                isLocal: true,
+                                stream: localStream,
+                                userName: myName + " (You)",
+                                isCameraOff: isCameraOff || !localStream,
+                            },
+                            ...Object.entries(remoteStreams).map(([id, data]) => ({
+                                id,
+                                isLocal: false,
+                                stream: data.stream,
+                                userName: data.userName,
+                                isCameraOff: !data.stream || data.stream.getVideoTracks().length === 0,
+                            }))
+                        ];
 
-                    <div style={css.stageArea}>
-                        {Object.keys(remoteStreams).length > 0 ? (
-                            (() => {
-                                const firstRemoteId = Object.keys(remoteStreams)[0];
-                                const firstRemote = remoteStreams[firstRemoteId];
-                                return (
-                                    <>
-                                        {firstRemote.stream && firstRemote.stream.getVideoTracks().length > 0 ? (
-                                            <VideoPlayer stream={firstRemote.stream} />
-                                        ) : (
-                                            <div style={css.mainPlaceholder}>
-                                                <Avatar name={firstRemote.userName || "Participant"} size={120} />
-                                                <p style={css.placeholderText}>{firstRemote.userName || "Participant"}'s camera is off</p>
+                        const togglePin = (id) => {
+                            setPinnedParticipantId(prev => prev === id ? null : id);
+                        };
+
+                        if (layoutMode === "grid") {
+                            return (
+                                <div style={{ display: "grid", gridTemplateColumns: allParticipants.length > 4 ? "repeat(3, 1fr)" : allParticipants.length > 1 ? "repeat(2, 1fr)" : "1fr", gap: 16, flex: 1, overflowY: "auto" }}>
+                                    {allParticipants.map((p) => (
+                                        <div key={p.id} onClick={() => togglePin(p.id)} style={{ ...css.stageArea, cursor: "pointer", border: pinnedParticipantId === p.id ? "2px solid #5B65DC" : "none", minHeight: 200 }}>
+                                            {!p.isCameraOff && p.stream ? (
+                                                <VideoPlayer stream={p.stream} muted={p.isLocal} volume={p.isLocal ? 0 : (participantVolumes[p.id] ?? 1) * masterVolume} />
+                                            ) : (
+                                                <div style={css.mainPlaceholder}>
+                                                    <Avatar name={p.userName.replace(" (You)", "")} size={80} />
+                                                    <p style={css.placeholderText}>{mediaError && p.isLocal ? mediaError : p.userName + "'s camera is off"}</p>
+                                                </div>
+                                            )}
+                                            <div style={css.mainLabel}>
+                                                <div style={css.statusDot} />
+                                                {p.userName}
+                                                {raisedHands.includes(p.id) && <span style={{ marginLeft: 8 }}>✋</span>}
+                                                {networkStats[p.id] && (
+                                                    <span title={networkStats[p.id] === "unsupported" ? "Network stats unsupported" : "Network: " + networkStats[p.id]} style={{ marginLeft: 8 }}>
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={networkStats[p.id] === "good" ? "#10B981" : networkStats[p.id] === "fair" ? "#F59E0B" : networkStats[p.id] === "poor" ? "#EF4444" : "#D1D5DB"} strokeWidth="2">
+                                                            <path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12" y2="20" strokeWidth="4" />
+                                                        </svg>
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {flyingReactions.map(r => (
+                                        <div key={r.id} className="flying-reaction" style={{ left: `${20 + Math.random() * 60}%` }}>
+                                            {r.emoji}
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        }
+
+                        let mainParticipant = allParticipants.find(p => p.id === pinnedParticipantId);
+                        if (!mainParticipant) {
+                            mainParticipant = allParticipants.find(p => !p.isLocal) || allParticipants[0];
+                        }
+                        const stripParticipants = allParticipants.filter(p => p.id !== mainParticipant.id);
+
+                        return (
+                            <>
+                                {stripParticipants.length > 0 && (
+                                    <div style={css.thumbStrip}>
+                                        {stripParticipants.map((p) => (
+                                            <div key={p.id} onClick={() => togglePin(p.id)} style={{ ...css.thumbCard, cursor: "pointer" }}>
+                                                {!p.isCameraOff && p.stream ? (
+                                                    <VideoPlayer stream={p.stream} muted={p.isLocal} volume={p.isLocal ? 0 : (participantVolumes[p.id] ?? 1) * masterVolume} />
+                                                ) : (
+                                                    <div style={css.thumbPlaceholder}><Avatar name={p.userName.replace(" (You)", "")} size={40} /></div>
+                                                )}
+                                                <div style={{...css.thumbLabel, display: 'flex', gap: 6, alignItems: 'center'}}>
+                                                    <span>{p.userName}</span>
+                                                    {raisedHands.includes(p.id) && <span>✋</span>}
+                                                    {networkStats[p.id] && (
+                                                        <span title={networkStats[p.id] === "unsupported" ? "Network stats unsupported" : "Network: " + networkStats[p.id]}>
+                                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={networkStats[p.id] === "good" ? "#10B981" : networkStats[p.id] === "fair" ? "#F59E0B" : networkStats[p.id] === "poor" ? "#EF4444" : "#D1D5DB"} strokeWidth="2">
+                                                                <path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12" y2="20" strokeWidth="4" />
+                                                            </svg>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div style={{ ...css.stageArea, cursor: "pointer" }} onClick={() => togglePin(mainParticipant.id)}>
+                                    {!mainParticipant.isCameraOff && mainParticipant.stream ? (
+                                        <VideoPlayer stream={mainParticipant.stream} muted={mainParticipant.isLocal} volume={mainParticipant.isLocal ? 0 : (participantVolumes[mainParticipant.id] ?? 1) * masterVolume} />
+                                    ) : (
+                                        <div style={css.mainPlaceholder}>
+                                            <Avatar name={mainParticipant.userName.replace(" (You)", "")} size={120} />
+                                            <p style={css.placeholderText}>{mediaError && mainParticipant.isLocal ? mediaError : mainParticipant.userName + "'s camera is off"}</p>
+                                        </div>
+                                    )}
+                                    <div style={css.mainLabel}>
+                                        <div style={css.statusDot} />
+                                        {mainParticipant.userName}
+                                        {pinnedParticipantId === mainParticipant.id && <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.8 }}>(Pinned)</span>}
+                                        {raisedHands.includes(mainParticipant.id) && <span style={{ marginLeft: 8 }}>✋</span>}
+                                        {networkStats[mainParticipant.id] && (
+                                            <span title={networkStats[mainParticipant.id] === "unsupported" ? "Network stats unsupported" : "Network: " + networkStats[mainParticipant.id]} style={{ marginLeft: 8 }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={networkStats[mainParticipant.id] === "good" ? "#10B981" : networkStats[mainParticipant.id] === "fair" ? "#F59E0B" : networkStats[mainParticipant.id] === "poor" ? "#EF4444" : "#D1D5DB"} strokeWidth="2">
+                                                    <path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12" y2="20" strokeWidth="4" />
+                                                </svg>
+                                            </span>
+                                        )}
+                                    </div>
+                                    {flyingReactions.map(r => (
+                                        <div key={r.id} className="flying-reaction" style={{ left: `${20 + Math.random() * 60}%` }}>
+                                            {r.emoji}
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        );
+                    })()}
+
+                    {featureFlags.meetingToolbar ? (
+                        <footer style={css.controlPill}>
+                            <div style={css.roomIdBox}>
+                                <span style={css.roomLabel}>Meeting ID</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={css.roomValue}>{roomId}</span>
+                                    <button onClick={() => { navigator.clipboard.writeText(roomId); toast.success("Meeting ID copied!"); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#5B65DC", padding: 4, display: "flex", alignItems: "center" }}>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div style={css.btnGroup}>
+                                <CtrlBtn onClick={toggleMute} active={!isMuted} label={isMuted ? "Unmute" : "Mute"}>
+                                    <IconMic muted={isMuted} />
+                                </CtrlBtn>
+                                <CtrlBtn onClick={toggleCamera} active={!isCameraOff} label={isCameraOff ? "Camera On" : "Camera Off"}>
+                                    <IconCamera off={isCameraOff} />
+                                </CtrlBtn>
+                                <CtrlBtn 
+                                    onClick={() => {
+                                        const isRaised = raisedHands.includes("local");
+                                        socket.emit("send-message", { roomId, type: "COMMAND", command: isRaised ? "LOWER_HAND" : "RAISE_HAND", targetId: "local", senderId: "local", sender: myName });
+                                    }} 
+                                    active={raisedHands.includes("local")} 
+                                    label="Raise Hand"
+                                >
+                                    ✋
+                                </CtrlBtn>
+                                <div title={typeof document !== "undefined" && !document.createElement("canvas").captureStream ? "Background blur not supported on this browser" : isBlurOn ? "Disable Blur" : "Enable Blur"}>
+                                    <CtrlBtn onClick={toggleBlur} active={isBlurOn} label="Blur" disabled={typeof document !== "undefined" && !document.createElement("canvas").captureStream}>
+                                        <IconBlur />
+                                    </CtrlBtn>
+                                </div>
+                                <CtrlBtn onClick={isScreenSharing ? stopScreenShare : startScreenShare} active={isScreenSharing} label={isScreenSharing ? "Stop Sharing" : "Share Screen"}>
+                                    <IconScreenShare />
+                                </CtrlBtn>
+                                <div style={{ position: "relative" }}>
+                                    <CtrlBtn onClick={() => setTimerOpen(!timerOpen)} active={timerOpen || timerRunning} label="Timer">
+                                        ⏱️
+                                    </CtrlBtn>
+                                    {timerOpen && (
+                                        <div style={{ position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)", marginBottom: 12, zIndex: 100, background: "#FFF", padding: 12, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", gap: 8, border: "1px solid #EEEFFD", minWidth: 120 }}>
+                                            <div style={{ fontSize: 24, fontWeight: 800, color: "#122056", textAlign: "center", fontFamily: "monospace" }}>{formatTimer(timerSeconds)}</div>
+                                            <div style={{ display: "flex", gap: 8 }}>
+                                                <button onClick={() => setTimerRunning(!timerRunning)} style={{ flex: 1, padding: 6, background: timerRunning ? "#F59E0B" : "#10B981", color: "#FFF", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>{timerRunning ? "Pause" : "Start"}</button>
+                                                <button onClick={() => { setTimerRunning(false); setTimerSeconds(0); }} style={{ padding: 6, background: "#F3F4F6", color: "#122056", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>Reset</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginLeft: 16 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: "#8B94B1", textTransform: "uppercase" }}>Master Vol</span>
+                                    <input type="range" min="0" max="1" step="0.01" value={masterVolume} onChange={e => setMasterVolume(parseFloat(e.target.value))} style={{ width: 80, accentColor: "#5B65DC" }} />
+                                </div>
+                                {featureFlags.emojiReactions && (
+                                    <div style={{ position: "relative" }}>
+                                        <CtrlBtn onClick={() => setShowReactionPicker(!showReactionPicker)} active={showReactionPicker} label="Reactions">
+                                            <IconEmoji />
+                                        </CtrlBtn>
+                                        {showReactionPicker && (
+                                            <div style={{ position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)", marginBottom: 12, zIndex: 100 }}>
+                                                <div style={{ background: "#FFF", borderRadius: 16, padding: "8px", boxShadow: "0 10px 40px rgba(0,0,0,0.15)", display: "flex", gap: 8, border: "1px solid #EEEFFD" }}>
+                                                    {["👍", "👏", "💖", "😂", "🎉", "😮"].map(emoji => (
+                                                        <button 
+                                                            key={emoji} 
+                                                            onClick={() => { socket.emit("reaction", { roomId, emoji }); setShowReactionPicker(false); }}
+                                                            style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", padding: 8, borderRadius: 8, transition: "transform 0.2s" }}
+                                                            onMouseEnter={e => e.currentTarget.style.transform = "scale(1.2)"}
+                                                            onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+                                                        >
+                                                            {emoji}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
-                                        <div style={css.mainLabel}>
-                                            <div style={css.statusDot} />
-                                            {firstRemote.userName || "Participant"}
-                                        </div>
-                                    </>
-                                );
-                            })()
-                        ) : localStream && !isCameraOff ? (
-                            <>
-                                <VideoPlayer stream={localStream} muted />
-                                <div style={css.mainLabel}>
-                                    <div style={css.statusDot} />
-                                    {myName} (You)
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div style={css.mainPlaceholder}>
-                                    <Avatar name={myName} size={120} />
-                                    <p style={css.placeholderText}>
-                                        {mediaError || "Your camera is off"}
-                                    </p>
-                                </div>
-                                <div style={css.mainLabel}>
-                                    <div style={css.statusDot} />
-                                    {myName} (You)
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    <footer style={css.controlPill}>
-                        <div style={css.roomIdBox}>
-                            <span style={css.roomLabel}>Meeting ID</span>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={css.roomValue}>{roomId}</span>
-                                <button onClick={() => { navigator.clipboard.writeText(roomId); addToast("Meeting ID copied!"); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#5B65DC", padding: 4, display: "flex", alignItems: "center" }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                                </button>
+                                    </div>
+                                )}
+                                <CtrlBtn 
+                                    onClick={() => setLayoutMode(prev => prev === "speaker" ? "grid" : "speaker")} 
+                                    active={layoutMode === "grid"} 
+                                    label={layoutMode === "speaker" ? "Grid View" : "Speaker View"}
+                                >
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="3" width="7" height="7" />
+                                        <rect x="14" y="3" width="7" height="7" />
+                                        <rect x="14" y="14" width="7" height="7" />
+                                        <rect x="3" y="14" width="7" height="7" />
+                                    </svg>
+                                </CtrlBtn>
+                                <CtrlBtn label="More"><IconExpand /></CtrlBtn>
                             </div>
-                        </div>
-                        <div style={css.btnGroup}>
-                            <CtrlBtn onClick={toggleMute} active={!isMuted} label={isMuted ? "Unmute" : "Mute"}>
-                                <IconMic muted={isMuted} />
-                            </CtrlBtn>
-                            <CtrlBtn onClick={toggleCamera} active={!isCameraOff} label={isCameraOff ? "Camera On" : "Camera Off"}>
-                                <IconCamera off={isCameraOff} />
-                            </CtrlBtn>
-                            <CtrlBtn onClick={isScreenSharing ? stopScreenShare : startScreenShare} active={isScreenSharing} label={isScreenSharing ? "Stop Sharing" : "Share Screen"}>
-                                <IconScreenShare />
-                            </CtrlBtn>
-                            <CtrlBtn label="More"><IconExpand /></CtrlBtn>
-                        </div>
-                        <button onClick={leaveRoom} style={css.endCallBtn}>
-                            End Call
-                        </button>
-                    </footer>
+                            <button onClick={leaveRoom} style={css.endCallBtn}>
+                                End Call
+                            </button>
+                        </footer>
+                    ) : (
+                        <footer style={css.controlPill}>
+                            <div style={css.roomIdBox}>
+                                <span style={css.roomLabel}>Meeting ID</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={css.roomValue}>{roomId}</span>
+                                </div>
+                            </div>
+                            <button onClick={leaveRoom} style={css.endCallBtn}>End Call</button>
+                        </footer>
+                    )}
                 </div>
             </main>
 
@@ -764,7 +1091,15 @@ const MeetingRoom = () => {
                     </>
                 ) : (
                     <div style={css.participantList}>
-                        {participants.map((p) => (
+                        {isHost && (
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                                <button onClick={() => socket.emit("send-message", { roomId, type: "COMMAND", command: "MUTE_ALL", senderId: socket.id })} style={{...css.chatSendBtn, width: 'auto', padding: '0 12px', fontSize: 12, height: 32}}>Mute All</button>
+                                <button onClick={() => socket.emit("send-message", { roomId, type: "COMMAND", command: "LOWER_HAND", targetId: "ALL", senderId: socket.id })} style={{...css.chatSendBtn, width: 'auto', padding: '0 12px', fontSize: 12, height: 32, background: '#F3F4F6', color: '#122056', border: '1px solid #EEEFFD'}}>Lower All Hands</button>
+                            </div>
+                        )}
+                        {participants.map((p) => {
+                            const pId = p.socketId === socket.id ? "local" : p.socketId;
+                            return (
                             <div key={p.socketId} style={css.participantItem}>
                                 <Avatar name={p.userName} size={32} />
                                 <div style={css.participantInfo}>
@@ -774,10 +1109,27 @@ const MeetingRoom = () => {
                                     <div style={css.participantStatus}>
                                         <div style={{ ...css.statusDot, background: "#10B981" }} />
                                         Online
+                                        {raisedHands.includes(pId) && <span style={{ marginLeft: 4 }}>✋</span>}
                                     </div>
                                 </div>
+                                {p.socketId !== socket.id && (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: isHost ? 8 : 0 }}>
+                                        <span style={{ fontSize: 8, fontWeight: 700, color: "#8B94B1" }}>VOL</span>
+                                        <input type="range" min="0" max="1" step="0.01" value={participantVolumes[p.socketId] ?? 1} onChange={e => setParticipantVolumes({...participantVolumes, [p.socketId]: parseFloat(e.target.value)})} style={{ width: 40, accentColor: "#5B65DC" }} />
+                                    </div>
+                                )}
+                                {isHost && p.socketId !== socket.id && (
+                                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                                        {raisedHands.includes(pId) && (
+                                            <button onClick={() => socket.emit("send-message", { roomId, type: "COMMAND", command: "LOWER_HAND", targetId: pId })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }} title="Lower Hand">👇</button>
+                                        )}
+                                        <button onClick={() => socket.emit("send-message", { roomId, type: "COMMAND", command: "MUTE_ONE", targetId: pId })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: 4 }} title="Mute Participant">
+                                            <IconMic muted={true} />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                        ))}
+                        )})}
                     </div>
                 )}
             </aside>
@@ -821,6 +1173,21 @@ const globalCSS = `
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
   ::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+
+  @keyframes flyUpAndFade {
+      0% { transform: translateY(0) scale(1); opacity: 1; }
+      50% { transform: translateY(-100px) scale(1.5); opacity: 1; }
+      100% { transform: translateY(-200px) scale(1); opacity: 0; }
+  }
+  .flying-reaction {
+      position: absolute;
+      bottom: 20px;
+      font-size: 40px;
+      animation: flyUpAndFade 1.5s ease-out forwards;
+      pointer-events: none;
+      z-index: 50;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+  }
 `;
 
 const css = {

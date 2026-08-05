@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-const VideoPlayer = ({ stream, muted = false }) => {
+const VideoPlayer = ({ stream, muted = false, volume = 1 }) => {
     const videoRef = useRef(null);
 
     useEffect(() => {
@@ -9,6 +9,12 @@ const VideoPlayer = ({ stream, muted = false }) => {
         }
     }, [stream]);
 
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.volume = volume;
+        }
+    }, [volume]);
+
     return (
         <video
             ref={videoRef}
@@ -16,6 +22,7 @@ const VideoPlayer = ({ stream, muted = false }) => {
             playsInline
             muted={muted}
             className="w-full h-full rounded-lg bg-[#111827] object-cover"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
             onCanPlay={(e) => e.target.play().catch(err => console.log("Autoplay blocked", err))}
         />
     );
